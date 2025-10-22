@@ -10,9 +10,11 @@ const L_36 = Math.log(2) / 0.301e6;
 const Rp_26_10 = 7.0;
 const Rp_36_10 = 3.0;
 
+// --- NEW: Define Max Age for Clock Face ---
+const maxAgeOnClockKyr = 1200; // Display 0 to 1200 kyrs (1.2 Myr)
+
 // 1. Load the data from your CSV
 function preload() {
-  // 'csv' = file has a header, 'header' = use the header names
   clockData = loadTable('calculated_clock_data.csv', 'csv', 'header');
 }
 
@@ -65,7 +67,6 @@ function drawFrame() {
   let status = row.getString('status');
 
   // --- Calculate Apparent Burial Age (in kyrs) ---
-  // This calculation happens here, using the current ratio
   let t_app_26_yr = Math.log(Rp_26_10 / R_26_10) / (L_26 - L_10);
   let t_app_36_yr = Math.log(Rp_36_10 / R_36_10) / (L_36 - L_10);
 
@@ -73,9 +74,9 @@ function drawFrame() {
   let t_app_36_kyr = t_app_36_yr / 1000;
 
   // --- Draw the two clocks ---
-  // Pass the calculated apparent age to the draw function
-  drawClock(200, 300, '26Al / 10Be Clock (Long Memory)', R_26_10, 7.0, t_app_26_kyr, cumulativeTimeMyr);
-  drawClock(600, 300, '36Cl / 10Be Clock (Short Memory)', R_36_10, 3.0, t_app_36_kyr, cumulativeTimeMyr);
+  // Pass the calculated apparent age (kyr) to the draw function
+  drawClock(200, 300, '26Al / 10Be Clock (Long Memory)', t_app_26_kyr, cumulativeTimeMyr);
+  drawClock(600, 300, '36Cl / 10Be Clock (Short Memory)', t_app_36_kyr, cumulativeTimeMyr);
 
   // --- Draw the STATUS indicator ---
   textSize(32);
@@ -91,11 +92,16 @@ function drawFrame() {
   }
 }
 
-// 6. Helper function to draw one clock
-// Now takes apparentAgeKyr as an argument
-function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeKyr, cumulativeTimeMyr) {
-  let clockMin = 0;
-  let clockMax = prodRatio;
+// 6. *** REDESIGNED *** Helper function to draw one clock (Age on Face)
+function drawClock(x, y, title, apparentAgeKyr, cumulativeTimeMyr) {
+
+  // --- Clean up age value ---
+  // Show negative ages (from exposure) or NaN/Infinity as 0
+  if (isNaN(apparentAgeKyr) || apparentAgeKyr < 0 || !isFinite(apparentAgeKyr)) {
+      apparentAgeKyr = 0;
+  }
+  // Don't let the hand go past the max age displayed
+  let ageForHand = constrain(apparentAgeKyr, 0, maxAgeOnClockKyr);
 
   // --- Draw Clock Face ---
   noFill();
@@ -103,9 +109,10 @@ function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeKyr, cumulat
   strokeWeight(4);
   circle(x, y, 250);
 
-  // --- Draw Ticks and Numbers ---
-  for (let ratio = 0; ratio <= clockMax; ratio += 0.5) {
-    let tickAngle = map(ratio, 0, clockMax, 90, -90); // 0 at bottom, max at top
+  // --- Draw Ticks and Numbers (representing Age in kyrs) ---
+  for (let ageTick = 0; ageTick <= maxAgeOnClockKyr; ageTick += 100) { // Ticks every 100 kyrs
+    // Map age to angle. 0 kyrs is at the top (-90 deg). Max age is just before top again.
+    let tickAngle = map(ageTick, 0, maxAgeOnClockKyr, 0, 360) - 90;
     let rad = radians(tickAngle);
 
     let x1 = x + cos(rad) * 125;
@@ -114,18 +121,26 @@ function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeKyr, cumulat
     let y2 = y + sin(rad) * 115;
 
     strokeWeight(1);
-    if (ratio % 1 === 0) strokeWeight(3);
+    // Make main numbers (e.g., 0, 200, 400...) bolder
+    if (ageTick % 200 === 0) strokeWeight(3);
     line(x1, y1, x2, y2);
 
-    if (ratio % 1 === 0) {
+    // Draw numbers every 200 kyrs
+    if (ageTick % 200 === 0) {
       let x_num = x + cos(rad) * 95;
       let y_num = y + sin(rad) * 95;
       noStroke();
       fill(0);
       textSize(14);
-      text(ratio.toFixed(0), x_num, y_num);
+      text(ageTick.toFixed(0), x_num, y_num); // e.g., "0", "200", "400"
     }
   }
+    // Add "kyrs" label near the ticks
+    textSize(12);
+    fill(100);
+    noStroke();
+    text("kyrs", x, y - 70);
+
 
   // --- Draw Clock Title ---
   textSize(16);
@@ -133,32 +148,26 @@ function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeKyr, cumulat
   noStroke();
   text(title, x, y - 150);
 
-  // --- Draw DUAL Readouts ---
+  // --- Draw DUAL Readouts Below Clock ---
 
-  // Readout 1: Apparent Burial Age (in kyrs) - Now uses the argument
-  if (isNaN(apparentAgeKyr) || apparentAgeKyr < 0 || !isFinite(apparentAgeKyr)) {
-      apparentAgeKyr = 0; // Clean NaN, negative, or infinite values
-  }
+  // Readout 1: Apparent Burial Age (precise value)
   textSize(20);
   fill(0, 0, 150); // Blue for age
   noStroke();
-  text('Apparent Burial Age', x, y + 30);
+  text('Apparent Burial Age', x, y + 150); // Adjusted position
   textSize(28);
-  text(apparentAgeKyr.toFixed(0) + ' kyrs', x, y + 60);
+  text(apparentAgeKyr.toFixed(0) + ' kyrs', x, y + 180); // Adjusted position
 
   // Readout 2: Scenario Time (in Myrs)
   textSize(16);
   fill(100); // Gray for scenario time
   noStroke();
-  text('Scenario Time', x, y + 150);
+  text('Scenario Time', x, y + 210); // Adjusted position
   textSize(20);
-  text(cumulativeTimeMyr.toFixed(2) + ' Myr', x, y + 175);
+  text(cumulativeTimeMyr.toFixed(2) + ' Myr', x, y + 235); // Adjusted position
 
-  // --- Draw Clock Hand (based on ratio) ---
-  if (isNaN(currentRatio)) currentRatio = 0; // Fix potential NaN
-  // Ensure ratio stays within bounds for mapping
-  currentRatio = constrain(currentRatio, clockMin, clockMax); 
-  let handAngle = map(currentRatio, 0, clockMax, 90, -90);
+  // --- Draw Clock Hand (based on Apparent Age) ---
+  let handAngle = map(ageForHand, 0, maxAgeOnClockKyr, 0, 360) - 90;
   let handRad = radians(handAngle);
 
   stroke(200, 0, 0); // Red hand
