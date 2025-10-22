@@ -2,7 +2,7 @@ let clockData; // This will hold our CSV data
 let currentFrame = 0;
 let isPlaying = false;
 let playButton;
-let restartButton; // <<< NEW: Restart button variable
+let restartButton; // <<< Restart button variable
 
 // --- Define physics constants in JS for age calculation ---
 const L_10 = Math.log(2) / 1.4e6;
@@ -10,9 +10,6 @@ const L_26 = Math.log(2) / 0.717e6;
 const L_36 = Math.log(2) / 0.301e6;
 const Rp_26_10 = 7.0;
 const Rp_36_10 = 3.0;
-
-// --- Define Max Age for Clock Hand ---
-const maxAgeOnClockKyr = 1200; // Hand maps 0 to 1200 kyrs
 
 // 1. Load the data from your CSV
 function preload() {
@@ -27,10 +24,10 @@ function setup() {
 
   // Create the Start/Stop button
   playButton = createButton('Start / Stop');
-  playButton.position(10, 10);
+  playButton.position(10, 10); // Top-left corner
   playButton.mousePressed(togglePlay);
 
-  // <<< NEW: Create the Restart button >>>
+  // <<< Create the Restart button >>>
   restartButton = createButton('Restart');
   restartButton.position(110, 10); // Position next to start/stop
   restartButton.mousePressed(restartAnimation); // Link to restart function
@@ -49,7 +46,7 @@ function togglePlay() {
   }
 }
 
-// <<< NEW: Function to restart the animation >>>
+// <<< Function to restart the animation >>>
 function restartAnimation() {
   currentFrame = 0;
   isPlaying = false;
@@ -84,6 +81,7 @@ function drawFrame() {
   let status = row.getString('status');
 
   // --- Calculate Apparent Burial Age (in kyrs) ---
+  // Still needed for the digital readout
   let t_app_26_yr = Math.log(Rp_26_10 / R_26_10) / (L_26 - L_10);
   let t_app_36_yr = Math.log(Rp_36_10 / R_36_10) / (L_36 - L_10);
 
@@ -91,7 +89,7 @@ function drawFrame() {
   let t_app_36_kyr = t_app_36_yr / 1000;
 
   // --- Draw the two clocks ---
-  // Pass apparent age (kyr) for the HAND, pass ratio for the DIGITAL readout
+  // Pass the CURRENT RATIO for the HAND, and apparent age for digital readout
   drawClock(200, 300, '26Al / 10Be Clock (Long Memory)', R_26_10, 7.0, t_app_26_kyr, cumulativeTimeMyr);
   drawClock(600, 300, '36Cl / 10Be Clock (Short Memory)', R_36_10, 3.0, t_app_36_kyr, cumulativeTimeMyr);
 
@@ -109,18 +107,19 @@ function drawFrame() {
   }
 }
 
-// 6. *** REDESIGNED *** Helper function to draw one clock (Ratio Ticks, Age Hand)
+// 6. *** REDESIGNED *** Helper function to draw one clock (Ratio Ticks, Ratio Hand)
 function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeKyr, cumulativeTimeMyr) {
+  let clockMinRatio = 0;
+  let clockMaxRatio = prodRatio; // Max ratio on face (7 or 3)
 
-    // --- Clean up age value ---
+    // --- Clean up ratio value ---
+     if (isNaN(currentRatio) || !isFinite(currentRatio)) currentRatio = 0; // Fix potential NaN/Infinity at start
+     currentRatio = constrain(currentRatio, clockMinRatio, clockMaxRatio); // Keep within bounds
+
+    // --- Clean up age value (for digital display) ---
     if (isNaN(apparentAgeKyr) || apparentAgeKyr < 0 || !isFinite(apparentAgeKyr)) {
         apparentAgeKyr = 0;
     }
-    // Constrain age for hand mapping
-    let ageForHand = constrain(apparentAgeKyr, 0, maxAgeOnClockKyr);
-    // Clean up ratio value
-     if (isNaN(currentRatio)) currentRatio = 0; // Fix potential NaN at start
-     currentRatio = constrain(currentRatio, 0, prodRatio); // Keep within bounds
 
 
   // --- Draw Clock Face ---
@@ -130,9 +129,9 @@ function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeKyr, cumulat
   circle(x, y, 250);
 
   // --- Draw Ticks and Numbers (representing RATIO) ---
-  for (let ratioTick = 0; ratioTick <= prodRatio; ratioTick += 0.5) {
+  for (let ratioTick = 0; ratioTick <= clockMaxRatio; ratioTick += 0.5) {
     // Map RATIO to angle. prodRatio is at the top (-90 deg). 0 is at bottom (90 deg).
-    let tickAngle = map(ratioTick, 0, prodRatio, 90, -90);
+    let tickAngle = map(ratioTick, 0, clockMaxRatio, 90, -90);
     let rad = radians(tickAngle);
 
     let x1 = x + cos(rad) * 125;
@@ -158,7 +157,7 @@ function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeKyr, cumulat
     textSize(12);
     fill(100);
     noStroke();
-    text("Ratio", x, y - 70);
+    text("Ratio", x, y - 70); // Label for the clock face ticks
 
 
   // --- Draw Clock Title ---
@@ -185,9 +184,9 @@ function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeKyr, cumulat
   textSize(20);
   text(cumulativeTimeMyr.toFixed(2) + ' Myr', x, y + 235);
 
-  // --- Draw Clock Hand (based on Apparent AGE) ---
-  // Map AGE to angle. 0 kyrs is at the top (-90 deg). Max age loops around.
-  let handAngle = map(ageForHand, 0, maxAgeOnClockKyr, 0, 360) - 90;
+  // --- Draw Clock Hand (based on CURRENT RATIO) ---
+  // Map the current ratio to the same angle as the ticks
+  let handAngle = map(currentRatio, 0, clockMaxRatio, 90, -90);
   let handRad = radians(handAngle);
 
   stroke(200, 0, 0); // Red hand
