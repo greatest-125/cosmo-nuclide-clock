@@ -1,11 +1,19 @@
-let animationData;
+let clockData; // This will hold our CSV data
 let currentFrame = 0;
 let isPlaying = false; 
 let playButton;
 
-// 1. Load the data from MATLAB
+// --- Define physics constants in JS for age calculation ---
+const L_10 = Math.log(2) / 1.4e6;
+const L_26 = Math.log(2) / 0.717e6;
+const L_36 = Math.log(2) / 0.301e6;
+const Rp_26_10 = 7.0;
+const Rp_36_10 = 3.0;
+
+// 1. Load the data from your CSV
 function preload() {
-  animationData = loadJSON('animation_data.json');
+  // 'csv' = file has a header, 'header' = use the header names
+  clockData = loadTable('calculated_clock_data.csv', 'csv', 'header');
 }
 
 // 2. Setup runs once
@@ -14,24 +22,21 @@ function setup() {
   textAlign(CENTER, CENTER);
   frameRate(30); 
   
-  // Create the Start/Stop button
   playButton = createButton('Start / Stop');
   playButton.position(10, 10);
   playButton.mousePressed(togglePlay); 
 
-  // *** FLICKER FIX ***: Start paused
-  noLoop(); 
-  // Draw the initial frame (frame 0)
-  drawFrame(); 
+  noLoop(); // Start paused
+  drawFrame(); // Draw the initial frame
 }
 
 // 3. Function to toggle play/pause
 function togglePlay() {
   isPlaying = !isPlaying; 
   if (isPlaying) {
-    loop(); // Start the draw loop
+    loop(); 
   } else {
-    noLoop(); // Stop the draw loop
+    noLoop(); 
   }
 }
 
@@ -40,40 +45,35 @@ function draw() {
   drawFrame(); // Draw the current frame
   
   // Advance frame
-  let data = Object.values(animationData);
-  if (isPlaying && currentFrame < data.length - 1) {
+  if (isPlaying && currentFrame < clockData.getRowCount() - 1) {
     currentFrame++;
-  } else if (currentFrame >= data.length - 1) {
-    // If at the end, stop
+  } else if (currentFrame >= clockData.getRowCount() - 1) {
     isPlaying = false;
     noLoop();
   }
 }
 
-// 5. NEW: Function to draw a single frame
-// This keeps the screen stable when paused
+// 5. Function to draw a single frame
 function drawFrame() {
-  background(240); // Light gray background
-  let data = Object.values(animationData);
-  
-  // Handle the very first frame where ratios are NaN
-  if (currentFrame === 0) {
-    frameData = { R_26_10: 0, R_36_10: 0, t_cumulative: 0, status: 'EXPOSURE' };
-  } else {
-    frameData = data[currentFrame];
-  }
+  background(240); 
+  let row = clockData.getRow(currentFrame);
 
-  // Get data for this frame
-  let R_26_10 = frameData.R_26_10;
-  let R_36_10 = frameData.R_36_10;
-  // *** NEW ***: Get the cumulative time
-  let cumulativeTimeYr = frameData.t_cumulative;
-  let status = frameData.status;
+  // Get data for this frame from the CSV columns
+  let R_26_10 = row.getNum('R_26_10');
+  let R_36_10 = row.getNum('R_36_10');
+  let cumulativeTimeMyr = row.getNum('t_cumulative_Myr');
+  let status = row.getString('status');
+  
+  // --- Calculate Apparent Burial Age (in kyrs) ---
+  let t_app_26_yr = Math.log(Rp_26_10 / R_26_10) / (L_26 - L_10);
+  let t_app_36_yr = Math.log(Rp_36_10 / R_36_10) / (L_36 - L_10);
+  
+  let t_app_26_kyr = t_app_26_yr / 1000;
+  let t_app_36_kyr = t_app_36_yr / 1000;
 
   // --- Draw the two clocks ---
-  // Arguments: x, y, title, current_ratio, production_ratio, cumulative_time
-  drawClock(200, 300, '26Al / 10Be Clock', R_26_10, 7.0, cumulativeTimeYr);
-  drawClock(600, 300, '36Cl / 10Be Clock', R_36_10, 3.0, cumulativeTimeYr);
+  drawClock(200, 300, '26Al / 10Be Clock (Long Memory)', R_26_10, 7.0, t_app_26_kyr, cumulativeTimeMyr);
+  drawClock(600, 300, '36Cl / 10Be Clock (Short Memory)', R_36_10, 3.0, t_app_36_kyr, cumulativeTimeMyr);
 
   // --- Draw the STATUS indicator ---
   textSize(32);
@@ -89,23 +89,20 @@ function drawFrame() {
   }
 }
 
-// 6. *** REDESIGNED *** Helper function to draw one clock
-function drawClock(x, y, title, currentRatio, prodRatio, cumulativeTimeYr) {
-  let clockMin = 0; // Minimum ratio on clock
-  let clockMax = prodRatio; // Maximum ratio (7 or 3)
+// 6. Helper function to draw one clock
+function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeKyr, cumulativeTimeMyr) {
+  let clockMin = 0;
+  let clockMax = prodRatio; 
 
   // --- Draw Clock Face ---
   noFill();
   stroke(0);
   strokeWeight(4);
-  circle(x, y, 250); // Clock outline
+  circle(x, y, 250); 
   
   // --- Draw Ticks and Numbers ---
   for (let ratio = 0; ratio <= clockMax; ratio += 0.5) {
-    // Map ratio to angle. 
-    // prodRatio (7 or 3) is at the top (-90 deg).
-    // 0 is at the bottom (90 deg).
-    let tickAngle = map(ratio, 0, clockMax, 90, -90); 
+    let tickAngle = map(ratio, 0, clockMax, 90, -90); // 0 at bottom, max at top
     let rad = radians(tickAngle);
     
     let x1 = x + cos(rad) * 125;
@@ -115,7 +112,7 @@ function drawClock(x, y, title, currentRatio, prodRatio, cumulativeTimeYr) {
     
     strokeWeight(1);
     if (ratio % 1 === 0) strokeWeight(3);
-    line(x1, y1, x2, y2); // Draw tick
+    line(x1, y1, x2, y2);
     
     if (ratio % 1 === 0) {
       let x_num = x + cos(rad) * 95;
@@ -128,24 +125,34 @@ function drawClock(x, y, title, currentRatio, prodRatio, cumulativeTimeYr) {
   }
   
   // --- Draw Clock Title ---
-  textSize(18);
+  textSize(16);
   fill(0);
   noStroke();
   text(title, x, y - 150);
   
-  // --- *** NEW *** Draw Master Time Readout (Bottom of clock) ---
-  let cumulativeTimeMyr = cumulativeTimeYr / 1e6;
-  if (isNaN(cumulativeTimeMyr)) cumulativeTimeMyr = 0;
+  // --- Draw DUAL Readouts ---
   
+  // Readout 1: Apparent Burial Age (in kyrs)
+  if (isNaN(apparentAgeKyr) || apparentAgeKyr < 0) {
+      apparentAgeKyr = 0; 
+  }
   textSize(20);
-  fill(0);
+  fill(0, 0, 150); // Blue for age
+  noStroke();
+  text('Apparent Burial Age', x, y + 30);
+  textSize(28);
+  text(apparentAgeKyr.toFixed(0) + ' kyrs', x, y + 60);
+
+  // Readout 2: Scenario Time (in Myrs)
+  textSize(16);
+  fill(100); // Gray for scenario time
   noStroke();
   text('Scenario Time', x, y + 150);
-  textSize(24);
-  text(cumulativeTimeMyr.toFixed(2) + ' Myr', x, y + 180);
+  textSize(20);
+  text(cumulativeTimeMyr.toFixed(2) + ' Myr', x, y + 175);
   
   // --- Draw Clock Hand (based on ratio) ---
-  if (isNaN(currentRatio)) currentRatio = 0; // Fix for frame 0
+  if (isNaN(currentRatio)) currentRatio = 0; 
   let handAngle = map(currentRatio, 0, clockMax, 90, -90);
   let handRad = radians(handAngle);
   
