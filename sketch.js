@@ -3,7 +3,7 @@ let currentFrame = 0;
 let isPlaying = false;
 let playButton;
 let restartButton;
-let frameDelay = 6;   // <--- tweak to change the speed of the animation 
+let frameDelay = 12;   // <--- tweak to change the speed of the animation 
 let frameCounter = 0;
 
 // --- constants ---
@@ -97,7 +97,6 @@ function drawFrame() {
     fill(200, 0, 0);
     text("EXPOSURE", width / 2, 160);
   }
-
   drawClock(
     200,
     370,
@@ -179,5 +178,6 @@ function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeDisp, cumula
   noStroke();
   circle(x, y, 10);
 }
+
 
 
