@@ -43,13 +43,13 @@ function setup() {
   controlBar.style("z-index", "1000");
 
   // Play / Pause button
-  playButton = createButton("▶️ Play / ⏸ Pause");
+  playButton = createButton("Play / Pause");
   styleButton(playButton, "#2e7d32");
   playButton.parent(controlBar);
   playButton.mousePressed(togglePlay);
 
   // Restart button
-  restartButton = createButton("🔁 Restart");
+  restartButton = createButton("Restart");
   styleButton(restartButton, "#0277bd");
   restartButton.parent(controlBar);
   restartButton.mousePressed(restartAnimation);
@@ -134,22 +134,8 @@ function drawFrame() {
   let t_app_26_disp = t_app_26 / AGE_UNIT;
   let t_app_36_disp = t_app_36 / AGE_UNIT;
 
-  // header text
-  noStroke();
-  fill(30);
-  textSize(15);
-  text(
-    "Production ratio 26/10 = 7, 36/10 = 3 → Burial age = 0. " +
-      "Burial age can never be negative (ratio ≤ production).",
-    width / 2,
-    70
-  );
-
+  // text
   textSize(34);
-  fill(10);
-  text("Burial → Exposure → Burial", width / 2, 110);
-
-  textSize(22);
   fill(60);
   text("Scenario:", width / 2, 150);
   if (status === "BURIAL") {
@@ -253,3 +239,4 @@ function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeDisp, cumula
   textSize(18);
   text((cumulativeTimeMyr * 1e6 / 1e4).toFixed(0), x, y + 205);
 }
+
