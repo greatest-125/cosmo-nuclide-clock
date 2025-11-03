@@ -76,23 +76,9 @@ function drawFrame() {
   let t_app_26_disp = t_app_26 / AGE_UNIT;
   let t_app_36_disp = t_app_36 / AGE_UNIT;
 
-  // header info
-  textSize(16);
-  fill(50);
-  noStroke();
-  text(
-    "Production ratio 26/10 = 7, 36/10 = 3 → Burial age = 0. " +
-      "Burial age can never be negative (ratio ≤ production).",
-    width / 2,
-    40
-  );
-
+  // text
   textSize(32);
   fill(0);
-  text("Burial → Exposure → Burial", width / 2, 80);
-
-  textSize(26);
-  fill(60);
   text("Scenario:", width / 2, 120);
   if (status === "BURIAL") {
     fill(0, 0, 200);
@@ -183,3 +169,4 @@ function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeDisp, cumula
   noStroke();
   circle(x, y, 10);
 }
+
