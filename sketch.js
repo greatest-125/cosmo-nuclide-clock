@@ -3,6 +3,8 @@ let currentFrame = 0;
 let isPlaying = false;
 let playButton;
 let restartButton;
+let frameDelay = 6;   // <--- tweak to change the speed of the animation 
+let frameCounter = 0;
 
 // --- constants ---
 const L_10 = Math.log(2) / 1.4e6;
@@ -50,11 +52,19 @@ function restartAnimation() {
 
 function draw() {
   drawFrame();
-  if (isPlaying && currentFrame < clockData.getRowCount() - 1) {
-    currentFrame++;
-  } else if (currentFrame >= clockData.getRowCount() - 1) {
-    isPlaying = false;
-    noLoop();
+
+  if (!isPlaying) return;
+
+  // Only advance data every `frameDelay` visual frames
+  frameCounter++;
+  if (frameCounter >= frameDelay) {
+    frameCounter = 0;
+    if (currentFrame < clockData.getRowCount() - 1) {
+      currentFrame++;
+    } else {
+      isPlaying = false;
+      noLoop();
+    }
   }
 }
 
@@ -169,4 +179,5 @@ function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeDisp, cumula
   noStroke();
   circle(x, y, 10);
 }
+
 
