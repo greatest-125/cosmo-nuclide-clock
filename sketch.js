@@ -1,8 +1,13 @@
+// Cosmo Clock Simluation 
+// Author: Leel Dias 
+// MIT License
+
 let clockData;
 let currentFrame = 0;
 let isPlaying = false;
 let playButton, restartButton, speedSlider, speedLabel;
 let frameCounter = 0;
+let isDragging = false;
 
 // constants
 const L_10 = Math.log(2) / 1.4e6;
@@ -10,16 +15,18 @@ const L_26 = Math.log(2) / 0.717e6;
 const L_36 = Math.log(2) / 0.301e6;
 const Rp_26_10 = 7.0;
 const Rp_36_10 = 3.0;
-
 const AGE_UNIT = 1e4;
 const AGE_UNIT_LABEL = "[10^4 years]";
+
+// scenario bar geometry
+let barX, barY, barW, barH;
 
 function preload() {
   clockData = loadTable("calculated_clock_data.csv", "csv", "header");
 }
 
 function setup() {
-  createCanvas(850, 700);
+  createCanvas(850, 740);
   textAlign(CENTER, CENTER);
   frameRate(30);
   textFont("Helvetica, Arial, sans-serif");
@@ -54,7 +61,7 @@ function setup() {
   restartButton.parent(controlBar);
   restartButton.mousePressed(restartAnimation);
 
-  // Speed slider and label
+  // Speed slider + label
   speedLabel = createSpan("Speed 1.0×");
   speedLabel.style("margin-left", "6px");
   speedLabel.parent(controlBar);
@@ -65,6 +72,12 @@ function setup() {
   speedSlider.input(() => {
     speedLabel.html(`Speed ${speedSlider.value().toFixed(1)}×`);
   });
+
+  // Scenario bar setup
+  barW = 700;
+  barH = 25;
+  barX = (width - barW) / 2;
+  barY = height - 80;
 
   noLoop();
   drawFrame();
@@ -98,9 +111,8 @@ function restartAnimation() {
 function draw() {
   drawFrame();
 
-  if (!isPlaying) return;
+  if (!isPlaying && !isDragging) return;
 
-  // frame delay controlled by slider
   let speedFactor = speedSlider.value();
   let frameDelay = int(6 / speedFactor);
   if (frameDelay < 1) frameDelay = 1;
@@ -117,8 +129,10 @@ function draw() {
   }
 }
 
+// === FRAME DRAWING ===
 function drawFrame() {
   background(250);
+
   let row = clockData.getRow(currentFrame);
   let R_26_10 = row.getNum("R_26_10");
   let R_36_10 = row.getNum("R_36_10");
@@ -168,15 +182,18 @@ function drawFrame() {
     t_app_36_disp,
     cumulativeTimeMyr
   );
+
+  // scenario overview bar
+  drawScenarioBar();
 }
 
+// === CLOCK VISUALIZATION ===
 function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeDisp, cumulativeTimeMyr) {
   let clockMinRatio = 0;
   let clockMaxRatio = prodRatio;
   if (isNaN(currentRatio) || !isFinite(currentRatio)) currentRatio = 0;
   currentRatio = constrain(currentRatio, clockMinRatio, clockMaxRatio);
 
-  // soft shadow card
   noStroke();
   fill(255);
   rectMode(CENTER);
@@ -185,7 +202,6 @@ function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeDisp, cumula
   rect(x, y, 280, 340, 20);
   drawingContext.shadowBlur = 0;
 
-  // clock face
   noFill();
   stroke(0);
   strokeWeight(3);
@@ -240,3 +256,37 @@ function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeDisp, cumula
   text((cumulativeTimeMyr * 1e6 / 1e4).toFixed(0), x, y + 205);
 }
 
+// === SCENARIO OVERVIEW BAR ===
+function drawScenarioBar() {
+  push();
+  rectMode(CORNER);
+  noStroke();
+  drawingContext.shadowBlur = 10;
+  drawingContext.shadowColor = "rgba(0,0,0,0.2)";
+  fill(255);
+  rect(barX - 5, barY - 5, barW + 10, barH + 10, 10);
+  drawingContext.shadowBlur = 0;
+
+  // fill bar zones based on data
+  let n = clockData.getRowCount();
+  let segW = barW / n;
+
+  for (let i = 0; i < n; i++) {
+    let s = clockData.getRow(i).getString("status");
+    if (s === "BURIAL") fill(0, 80, 255);
+    else if (s === "EXPOSURE") fill(230, 0, 0);
+    else fill(200);
+    rect(barX + i * segW, barY, segW + 1, barH);
+  }
+
+  // moving arrow
+  let arrowX = barX + map(currentFrame, 0, n - 1, 0, barW);
+  fill("#FFD600");
+  noStroke();
+  triangle(
+    arrowX - 8,
+    barY - 12,
+    arrowX + 8,
+    barY - 12,
+    arrowX,
+    barY - 2
