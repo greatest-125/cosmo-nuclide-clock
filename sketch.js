@@ -1,6 +1,6 @@
-// Cosmo Clock Simluation 
+// Cosmo Clock 
 // Author: Leel Dias 
-// MIT License
+// MIT License 
 
 let clockData;
 let currentFrame = 0;
@@ -290,3 +290,45 @@ function drawScenarioBar() {
     barY - 12,
     arrowX,
     barY - 2
+  );
+
+  // label
+  fill(50);
+  textSize(16);
+  text("Scenario Overview", width / 2, barY - 25);
+  pop();
+}
+
+// === BAR INTERACTIVITY ===
+function mousePressed() {
+  if (
+    mouseX > barX &&
+    mouseX < barX + barW &&
+    mouseY > barY - 15 &&
+    mouseY < barY + barH + 15
+  ) {
+    isDragging = true;
+    noLoop();
+    updateFrameFromMouse();
+  }
+}
+
+function mouseDragged() {
+  if (isDragging) {
+    updateFrameFromMouse();
+  }
+}
+
+function mouseReleased() {
+  if (isDragging) {
+    isDragging = false;
+    if (isPlaying) loop();
+  }
+}
+
+function updateFrameFromMouse() {
+  let relX = constrain(mouseX - barX, 0, barW);
+  let n = clockData.getRowCount();
+  currentFrame = int(map(relX, 0, barW, 0, n - 1));
+  drawFrame();
+}
