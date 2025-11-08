@@ -1,6 +1,5 @@
-// Cosmo Clock
-// Leel Dias
-// MIT License
+// Cosmo Clock - Leel Dias
+
 let clockData;
 let currentFrame = 0;
 let isPlaying = false;
@@ -229,15 +228,6 @@ function drawHalfLifePanel() {
     )} (≈ ${Math.round(frac_after_2_half * 100)}%).`,
     leftX + 8,
     infoY + 20
-  );
-
-  // short clarifying note about "2×half-life => 25% (not 75%)"
-  fill(90);
-  textSize(11);
-  text(
-    "Note: 2 × half-life reduces the signal to 25% of original (because each half-life halves the remaining amount).",
-    leftX + 8,
-    infoY + 36
   );
 
   pop();
