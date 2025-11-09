@@ -205,7 +205,7 @@ function drawHalfLifePanel() {
   let t_test = 2 * half_36_10;
   let frac_after_2_half = Math.exp(-(L_36 - L_10) * t_test);
 
-  // panel
+  // panel background only (no text)
   push();
   rectMode(CENTER);
   noStroke();
@@ -214,29 +214,11 @@ function drawHalfLifePanel() {
   drawingContext.shadowColor = "rgba(0,0,0,0.12)";
   rect(width / 2, 230, 520, 66, 10);
   drawingContext.shadowBlur = 0;
+  pop();
 
-  fill(30);
-  textSize(13);
-  textAlign(LEFT, CENTER);
-  let leftX = width / 2 - 240;
-  let infoY = 230 - 8;
-  //text(
-   // `Effective ratio half-lives: 36/10 = ${Math.round(half_36_10).toLocaleString()} yr • 26/10 = ${Math.round(half_26_10).toLocaleString()} yr`,
-   // leftX + 8,
-   // infoY
- // );
- // textSize(12);
-//  text(
-  //  `If you use 2×half-life for 36/10 (t = ${Math.round(t_test).toLocaleString()} yr) the remaining fraction = ${frac_after_2_half.toFixed(
- //     3
-//    )} (≈ ${Math.round(frac_after_2_half * 100)}%).`,
-//    leftX + 8,
-//    infoY + 20
-//  );
-
-//  pop();
-//  textAlign(CENTER, CENTER);
-//}
+  // reset text alignment (important for other text later)
+  textAlign(CENTER, CENTER);
+}
 
 // === CLOCK VISUALIZATION ===
 function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeDisp, cumulativeTimeMyr) {
@@ -405,5 +387,6 @@ function updateFrameFromMouse() {
   currentFrame = int(map(relX, 0, barW, 0, n - 1));
   drawFrame();
 }
+
 
 
