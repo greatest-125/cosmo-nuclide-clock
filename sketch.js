@@ -1,4 +1,4 @@
-// Cosmo Clock - Leel Dias
+// Cosmo Clock
 
 let clockData;
 let currentFrame = 0;
@@ -28,13 +28,9 @@ function preload() {
 
 function setup() {
   createCanvas(850, 760);
-  canvas = createCanvas(850, 760);
-  canvas.style("z-index", "2000");
-  canvas.style("position", "relative");
   textAlign(CENTER, CENTER);
   frameRate(30);
   textFont("Helvetica, Arial, sans-serif");
-  
 
   // ----- UI: Floating Control Bar -----
   let controlBar = createDiv();
@@ -195,6 +191,7 @@ function drawFrame() {
   drawScenarioBar();
 }
 
+// === HALF-LIFE INFO PANEL ===
 // === HALF-LIFE INFO PANEL ===
 function drawHalfLifePanel() {
   // compute effective half-lives for ratios: half = ln2 / (Lx - L10)
@@ -387,6 +384,3 @@ function updateFrameFromMouse() {
   currentFrame = int(map(relX, 0, barW, 0, n - 1));
   drawFrame();
 }
-
-
-
