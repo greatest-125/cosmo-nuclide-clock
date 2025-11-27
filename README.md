@@ -16,7 +16,7 @@ To run the animation on your own machine, follow these steps:
 
 1.  **Download** this repository as a ZIP file and unzip it.
 
-2.  Open your terminal/command prompt and navigate to the project folder.
+2.  Open your terminal and navigate to the folder.
 
 3.  Ensure you have **Node.js** installed.
 
@@ -48,12 +48,11 @@ To illustrate the differences between the isotopic systems, the model uses the f
 
 **Production Ratios:**
 
--   $^{26}\text{Al} / ^{10}\text{Be}$ Ratio: **7.0**
+-   $^{26}\text{Al} / ^{10}\text{Be}$: **7.0**
 
--   $^{36}\text{Cl} / ^{10}\text{Be}$ Ratio: **3.0**
+-   $^{36}\text{Cl} / ^{10}\text{Be}$: **3.0**
 
 ### Equations Used
-*based on Lal (1990)*
 
 #### 1\. Decay Constant ($\lambda$)
 
@@ -62,6 +61,7 @@ Calculated from the half-life: 
 $$\lambda = \frac{\ln(2)}{t_{1/2}}$$
 
 #### 2\. Concentration during Exposure
+*based on Lal (1990)*
 
 When the rock is exposed, nuclides are produced by cosmic ray spallation while simultaneously decaying. The concentration $N(t)$ is calculated iteratively: $N(t) = \frac{P}{\lambda}(1 - e^{-\lambda t}) + N_0 e^{-\lambda t}$ *Where* $P$ *is the production rate and* $N_0$ *is the concentration from the previous time step.*
 
@@ -73,9 +73,7 @@ $$N(t) = N_0 e^{-\lambda t}$$
 
 #### 4\. The "Burial Age" Clock
 
-The animation calculates the "Apparent Burial Age" by comparing the measured ratio of two nuclides ($R_{measured}$) to the initial surface production ratio ($R_{initial}$).
-
-Because $^{26}\text{Al}$ decays faster than $^{10}\text{Be}$, their ratio decreases over time. The age $t$ is derived as: $t = \frac{\ln(R_{measured} / R_{initial})}{\lambda_{10} - \lambda_{26}}$ 
+The animation calculates the "Apparent Burial Age" by comparing the measured ratio of two nuclides ($R_{measured}$) to the initial surface production ratio ($R_{initial}$). The age $t$ is derived as: $$t = \frac{\ln(R_{measured} / R_{initial})}{\lambda_{10} - \lambda_{x}}$$, where x is either 26Al or 36Cl.
 
 ### Assumptions & Simplifications
 
