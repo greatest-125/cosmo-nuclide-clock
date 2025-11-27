@@ -1,4 +1,6 @@
-// Cosmo Clock
+// Cosmo Clock; November 2025
+// Leel Dias
+// MIT License 
 
 let clockData;
 let currentFrame = 0;
@@ -16,8 +18,8 @@ const L_36 = Math.log(2) / 0.301e6;  // 36Cl half-life ~ 0.301e6 yr
 const Rp_26_10 = 7.0;
 const Rp_36_10 = 3.0;
 
-const AGE_UNIT = 1e4;
-const AGE_UNIT_LABEL = "[10^4 years]";
+const AGE_UNIT = 1e3;
+const AGE_UNIT_LABEL = "[kyr]";
 
 // scenario bar geometry
 let barX, barY, barW, barH;
@@ -137,7 +139,7 @@ function drawFrame() {
   let row = clockData.getRow(currentFrame);
   let R_26_10 = row.getNum("R_26_10");
   let R_36_10 = row.getNum("R_36_10");
-  let cumulativeTimeMyr = row.getNum("t_cumulative_Myr");
+  let cumulativeTime = row.getNum("t_cumulative");
   let status = row.getString("status");
 
   // apparent burial ages (years)
@@ -175,7 +177,7 @@ function drawFrame() {
     R_26_10,
     Rp_26_10,
     t_app_26_disp,
-    cumulativeTimeMyr
+    cumulativeTime
   );
   drawClock(
     600,
@@ -184,14 +186,13 @@ function drawFrame() {
     R_36_10,
     Rp_36_10,
     t_app_36_disp,
-    cumulativeTimeMyr
+    cumulativeTime
   );
 
   // scenario overview bar
   drawScenarioBar();
 }
 
-// === HALF-LIFE INFO PANEL ===
 // === HALF-LIFE INFO PANEL ===
 function drawHalfLifePanel() {
   // compute effective half-lives for ratios: half = ln2 / (Lx - L10)
@@ -202,23 +203,12 @@ function drawHalfLifePanel() {
   let t_test = 2 * half_36_10;
   let frac_after_2_half = Math.exp(-(L_36 - L_10) * t_test);
 
-  // panel background only (no text)
-  push();
-  rectMode(CENTER);
-  noStroke();
-  fill(255);
-  drawingContext.shadowBlur = 8;
-  drawingContext.shadowColor = "rgba(0,0,0,0.12)";
-  rect(width / 2, 230, 520, 66, 10);
-  drawingContext.shadowBlur = 0;
-  pop();
-
   // reset text alignment (important for other text later)
   textAlign(CENTER, CENTER);
 }
 
 // === CLOCK VISUALIZATION ===
-function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeDisp, cumulativeTimeMyr) {
+function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeDisp, cumulativeTime) {
   let clockMinRatio = 0;
   let clockMaxRatio = prodRatio;
   if (isNaN(currentRatio) || !isFinite(currentRatio)) currentRatio = 0;
@@ -310,9 +300,9 @@ function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeDisp, cumula
   // small scenario time display
   textSize(14);
   fill(100);
-  text("Total Scenario Time [10^4 years]", x, y + 200);
+  text("Total Scenario Time [kyr]", x, y + 200);
   textSize(18);
-  text((cumulativeTimeMyr * 1e6 / 1e4).toFixed(0), x, y + 228);
+  text((cumulativeTime / AGE_UNIT).toFixed(0), x, y + 228);
 }
 
 // === SCENARIO OVERVIEW BAR ===
