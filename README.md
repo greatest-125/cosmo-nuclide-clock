@@ -73,7 +73,8 @@ $$N(t) = N_0 e^{-\lambda t}$$
 
 #### 4\. The "Burial Age" Clock
 
-The animation calculates the "Apparent Burial Age" by comparing the measured ratio of two nuclides ($R_{measured}$) to the initial surface production ratio ($R_{initial}$). The age $t$ is derived as: $$t = \frac{\ln(R_{measured} / R_{initial})}{\lambda_{10} - \lambda_{x}}$$, where x is either 26Al or 36Cl.
+The animation calculates the "Apparent Burial Age" by comparing the measured ratio of two nuclides ($R_{measured}$) to the initial surface production ratio ($R_{initial}$). The age $t$ is derived as: 
+$$t = \frac{\ln(R_{measured} / R_{initial})}{\lambda_{10} - \lambda_{x}}$$ where x is either 26Al or 36Cl.
 
 ### Assumptions & Simplifications
 
