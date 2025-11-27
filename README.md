@@ -40,58 +40,11 @@ To run the animation on your own machine, follow these steps:
 
 To illustrate the differences between the isotopic systems, the model uses the following constants:
 
-|
-
-Nuclide
-
- |
-
-Half-Life ($t_{1/2}$)
-
- |
-
-Production Rate ($P$)
-
- |
-|
-
-$^{10}Be$
-
- |
-
-1.4 Myr
-
- |
-
-4 atoms/g/yr
-
- |
-|
-
-$^{26}Al$
-
- |
-
-0.717 Myr
-
- |
-
-28 atoms/g/yr
-
- |
-|
-
-$^{36}Cl$
-
- |
-
-0.301 Myr
-
- |
-
-12 atoms/g/yr
-
- |
+| Nuclide | Half-Life (t₁/₂) | Production Rate (P) |
+|--------|-------------------|----------------------|
+| ¹⁰Be   | 1.4 Myr           | 4 atoms/g/yr         |
+| ²⁶Al   | 0.717 Myr         | 28 atoms/g/yr        |
+| ³⁶Cl   | 0.301 Myr         | 12 atoms/g/yr        |
 
 **Production Ratios:**
 
@@ -99,7 +52,8 @@ $^{36}Cl$
 
 -   $^{36}\text{Cl} / ^{10}\text{Be}$ Ratio: **3.0**
 
-### Equations Ysed
+### Equations Used
+*based on Lal (1990)*
 
 #### 1\. Decay Constant ($\lambda$)
 
@@ -125,7 +79,7 @@ Because $^{26}\text{Al}$ decays faster than $^{10}\text{Be}$, their ratio decrea
 
 ### Assumptions & Simplifications
 
-A number of simplifications were made when creating this animation (based on Balco et al., 2008 and Lal 1990):
+A number of simplifications were made when creating this animation (based on Balco et al., 2008):
 
 The following factors are not taken into consideration:
 
@@ -142,19 +96,3 @@ The following factors are not taken into consideration:
 -   Sample thickness 
 
 -   An effective attenuation length for production by muons
-
-3\. Citing This Work
---------------------
-
-If you use this visualization in your research or presentation, please cite it as follows:
-
-**BibTeX:**
-
-```
-@software{CosmoClock2025,
-  author = {Leel Dias},
-  title = {{Cosmogenic Nuclide Burial Dating Clock}},
-  url = {[https://greatest-125.github.io/cosmo-nuclide-clock/](https://greatest-125.github.io/cosmo-nuclide-clock/)},
-  year = {2025}
-}
-```
