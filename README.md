@@ -3,12 +3,8 @@ Cosmogenic Nuclide Burial Dating Clock
 
 This animation was created for the Schaefer Cosmo Lab at the Lamont-Doherty Earth Observatory, Columbia University.
 
-### Links
-
 -   **Online Animation:** <https://greatest-125.github.io/cosmo-nuclide-clock/>
-
--   **Source Data & Formulas:** [Google Spreadsheet](https://docs.google.com/spreadsheets/d/1nPbZxIw4t08HUSHw_SKzBmXv3ULkpbIGiIdpQ2vziXw/edit?gid=1338351912#gid=1338351912 "null")
-
+  
 1\. Running the Animation Locally
 ---------------------------------
 
