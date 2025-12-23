@@ -196,7 +196,7 @@ function setup() {
   restartButton.mousePressed(restartAnimation);
 
   // scenario button + summary
-  scenarioButton = createButton("Scenario…");
+  scenarioButton = createButton("Scenario");
   styleButton(scenarioButton, "#6a1b9a");
   scenarioButton.parent(controlBar);
   scenarioButton.mousePressed(() => showScenarioModal(true));
