@@ -42,6 +42,9 @@ const DT_YEARS = 5000;
 const AGE_UNIT = 1e3;
 const AGE_UNIT_LABEL = "[kyr]";
 
+// layout tweak: push the bottom UI (inventory + scenario bar) down by ~N pixels
+const BOTTOM_PANEL_SHIFT_PX = 120; // ~3 cm on a typical 96 dpi display
+
 // scenario bar
 let barX, barY, barW, barH;
 
@@ -205,7 +208,7 @@ function applyScenario(exposureMyr, burialMyr, reExposureMyr) {
 
 // ---------- p5 setup ----------
 function setup() {
-  createCanvas(850, 860);
+  createCanvas(850, 860 + BOTTOM_PANEL_SHIFT_PX);
   textAlign(CENTER, CENTER);
   frameRate(30);
   textFont("Helvetica, Arial, sans-serif");
