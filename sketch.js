@@ -2,7 +2,7 @@
 // Last Update: December 2025
 // MIT License
 
-let scenarioData = []; // array of {t_cumulative, status, N10, N26, N36, R_26_10, R_36_10}
+let scenarioData = []; // array of {t_cumulative, status, N10, N26, N36, R_26_10, R_36_10, R0_26_10, R0_36_10}
 let currentFrame = 0;
 let isPlaying = false;
 let playButton, restartButton, speedSlider, speedLabel;
@@ -26,6 +26,14 @@ const Rp_36_10 = 3.0;
 const P_10 = 4.0;
 const P_26 = Rp_26_10 * P_10; // 28
 const P_36 = Rp_36_10 * P_10; // 12
+
+// baseline exposure (Ma) - used to initialize starting inventories (NOT shown on timeline)
+const BASELINE_MYR = 0.5;
+
+// saturation inventories (atoms / g) for simple continuous exposure with constant production
+const N10_SAT = P_10 / L_10;
+const N26_SAT = P_26 / L_26;
+const N36_SAT = P_36 / L_36;
 
 // time step 
 const DT_YEARS = 5000;
@@ -85,13 +93,21 @@ function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
   const reExposureYears = Math.max(0, reExposureMyr) * 1e6;
 
   // ---- BASELINE INITIALIZATION (0.5 Ma, not shown on timeline) ----
-  const baseline = initializeBaselineExposure(0.5);
+  const baseline = initializeBaselineExposure(BASELINE_MYR);
   let N10 = baseline.N10;
   let N26 = baseline.N26;
   let N36 = baseline.N36;
 
   let t = 0;
   const rows = [];
+
+  let R26 = safeRatio(N26, N10, Rp_26_10);
+  let R36 = safeRatio(N36, N10, Rp_36_10);
+
+  // Store the ratio at the start of burial (Rinitial in the doc); used to compute burial age.
+  // (Only meaningful during burial. We keep the most recent values on each row for convenience.)
+  let burialR0_26 = R26;
+  let burialR0_36 = R36;
 
   // initial visible frame (t = 0 AFTER baseline)
   rows.push({
@@ -100,17 +116,46 @@ function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
     N10,
     N26,
     N36,
-    R_26_10: N26 / N10,
-    R_36_10: N36 / N10
+    R_26_10: R26,
+    R_36_10: R36,
+    R0_26_10: burialR0_26,
+    R0_36_10: burialR0_36
   });
 
   const phases = [
-  { status: "EXPOSURE", years: exposureYears, exposed: true },
-  { status: "BURIAL", years: burialYears, exposed: false },
-  { status: "EXPOSURE", years: reExposureYears, exposed: true }
-];
+    { status: "EXPOSURE", years: exposureYears, exposed: true },
+    { status: "BURIAL", years: burialYears, exposed: false },
+    { status: "EXPOSURE", years: reExposureYears, exposed: true }
+  ];
+
+  let prevStatus = "EXPOSURE";
 
   for (const phase of phases) {
+    // Add an explicit phase-boundary frame so burial starts at age=0
+    if (phase.status !== prevStatus) {
+      if (phase.status === "BURIAL") {
+        burialR0_26 = safeRatio(N26, N10, Rp_26_10);
+        burialR0_36 = safeRatio(N36, N10, Rp_36_10);
+      }
+
+      R26 = safeRatio(N26, N10, Rp_26_10);
+      R36 = safeRatio(N36, N10, Rp_36_10);
+
+      rows.push({
+        t_cumulative: t,
+        status: phase.status,
+        N10,
+        N26,
+        N36,
+        R_26_10: R26,
+        R_36_10: R36,
+        R0_26_10: burialR0_26,
+        R0_36_10: burialR0_36
+      });
+
+      prevStatus = phase.status;
+    }
+
     const steps = Math.round(phase.years / DT_YEARS);
     for (let i = 0; i < steps; i++) {
       if (phase.exposed) {
@@ -125,19 +170,24 @@ function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
 
       t += DT_YEARS;
 
+      R26 = safeRatio(N26, N10, Rp_26_10);
+      R36 = safeRatio(N36, N10, Rp_36_10);
+
       rows.push({
         t_cumulative: t,
         status: phase.status,
         N10,
         N26,
         N36,
-        R_26_10: safeRatio(N26, N10, 0),
-        R_36_10: safeRatio(N36, N10, 0)
+        R_26_10: R26,
+        R_36_10: R36,
+        R0_26_10: burialR0_26,
+        R0_36_10: burialR0_36
       });
     }
   }
 
-  // ensure we have at least 2 frames so the UI behaves 
+  // ensure we have at least 2 frames so the UI behaves
   if (rows.length < 2) rows.push({ ...rows[0], t_cumulative: DT_YEARS });
 
   return rows;
@@ -160,7 +210,7 @@ function applyScenario(exposureMyr, burialMyr, reExposureMyr) {
 
 // ---------- p5 setup ----------
 function setup() {
-  createCanvas(850, 760);
+  createCanvas(850, 860);
   textAlign(CENTER, CENTER);
   frameRate(30);
   textFont("Helvetica, Arial, sans-serif");
@@ -427,15 +477,24 @@ function drawFrame() {
   let cumulativeTime = row.t_cumulative;
   let status = row.status;
 
-  // calculate apparent burial ages
-  // t = ln(R_measured / R_initial) / (λ10 - λx)
-  let t_app_26 = Math.log(Rp_26_10 / R_26_10) / (L_26 - L_10);
-  let t_app_36 = Math.log(Rp_36_10 / R_36_10) / (L_36 - L_10);
+  // calculate burial ages from ratios (only meaningful during BURIAL)
+// t = ln(R_initial / R_measured) / (λ_x - λ_10)
+let t_app_26 = 0;
+let t_app_36 = 0;
+
+if (status === "BURIAL") {
+  const R0_26 = isFinite(row.R0_26_10) ? row.R0_26_10 : Rp_26_10;
+  const R0_36 = isFinite(row.R0_36_10) ? row.R0_36_10 : Rp_36_10;
+
+  t_app_26 = Math.log(R0_26 / R_26_10) / (L_26 - L_10);
+  t_app_36 = Math.log(R0_36 / R_36_10) / (L_36 - L_10);
+
   t_app_26 = isFinite(t_app_26) && t_app_26 > 0 ? t_app_26 : 0;
   t_app_36 = isFinite(t_app_36) && t_app_36 > 0 ? t_app_36 : 0;
+}
 
-  let t_app_26_disp = t_app_26 / AGE_UNIT;
-  let t_app_36_disp = t_app_36 / AGE_UNIT;
+let t_app_26_disp = (status === "BURIAL") ? (t_app_26 / AGE_UNIT) : null;
+  let t_app_36_disp = (status === "BURIAL") ? (t_app_36 / AGE_UNIT) : null;
 
   // header
   textSize(34);
@@ -457,7 +516,7 @@ function drawFrame() {
   textSize(12);
   fill(90);
   text(
-    `Initial concentrations: 0.5 Ma exposure for all nuclides.`,
+    `Initial concentrations: 0.5 Ma exposure for all nuclides (not shown).`,
     width / 2,
     210
   );
@@ -481,6 +540,8 @@ function drawFrame() {
     t_app_36_disp,
     cumulativeTime
   );
+
+  drawInventoryBars(row);
 
   drawScenarioBar();
 }
@@ -567,13 +628,88 @@ function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeDisp, cumula
   text("Burial Age " + AGE_UNIT_LABEL, x, y + 140);
   textSize(26);
   fill(10);
-  text(apparentAgeDisp.toFixed(2), x, y + 170);
+  let ageText = "—";
+  if (typeof apparentAgeDisp === "number" && isFinite(apparentAgeDisp)) {
+    ageText = apparentAgeDisp.toFixed(2);
+  }
+  text(ageText, x, y + 170);
 
   textSize(14);
   fill(100);
   text("Total Scenario Time [kyr]", x, y + 200);
   textSize(18);
   text((cumulativeTime / AGE_UNIT).toFixed(0), x, y + 228);
+}
+
+
+// inventory bars (fuel-gauge style)
+function drawInventoryBars(row) {
+  const panelW = 440;
+  const panelH = 120;
+  const panelX = width / 2;
+  const panelY = barY - 70;
+
+  // card
+  push();
+  rectMode(CENTER);
+  noStroke();
+  fill(255);
+  drawingContext.shadowBlur = 12;
+  drawingContext.shadowColor = "rgba(0,0,0,0.12)";
+  rect(panelX, panelY, panelW, panelH, 14);
+  drawingContext.shadowBlur = 0;
+
+  // title
+  fill(30);
+  textSize(14);
+  text("Nuclide inventory (atoms / g)", panelX, panelY - panelH / 2 + 18);
+
+  const bars = [
+    { label: "10Be", N: row.N10, Nmax: N10_SAT },
+    { label: "26Al", N: row.N26, Nmax: N26_SAT },
+    { label: "36Cl", N: row.N36, Nmax: N36_SAT }
+  ];
+
+  const barH = 56;
+  const barW = 18;
+  const baseY = panelY + 26; // bottom of bar area
+  const xs = [panelX - 130, panelX, panelX + 130];
+
+  for (let i = 0; i < bars.length; i++) {
+    const b = bars[i];
+    const frac = constrain(b.N / b.Nmax, 0, 1);
+    const fillH = frac * barH;
+
+    // outline
+    stroke(80);
+    strokeWeight(1);
+    noFill();
+    rect(xs[i], baseY - barH / 2, barW, barH, 4);
+
+    // fill
+    noStroke();
+    fill(60, 60, 60, 170);
+    rectMode(CORNER);
+    rect(xs[i] - barW / 2, baseY - fillH, barW, fillH, 4);
+
+    // labels
+    rectMode(CENTER);
+    fill(20);
+    textSize(12);
+    text(b.label, xs[i], baseY + 24);
+
+    fill(90);
+    textSize(10);
+    const valM = b.N / 1e6;
+    text(`${valM.toFixed(2)}×10⁶`, xs[i], baseY + 38);
+  }
+
+  // scale note
+  fill(110);
+  textSize(10);
+  text("Each bar scaled to its own saturation inventory (P/λ).", panelX, panelY + panelH / 2 - 16);
+
+  pop();
 }
 
 // scenario bar
