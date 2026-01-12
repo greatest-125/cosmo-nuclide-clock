@@ -42,6 +42,8 @@ const DT_YEARS = 5000;
 const AGE_UNIT = 1e3;
 const AGE_UNIT_LABEL = "[kyr]";
 
+const BOTTOM_PANEL_SHIFT_PX = 40; // adjust based on space needed for nuclide inventory panel
+
 // scenario bar
 let barX, barY, barW, barH;
 
@@ -205,7 +207,7 @@ function applyScenario(exposureMyr, burialMyr, reExposureMyr) {
 
 // ---------- p5 setup ----------
 function setup() {
-  createCanvas(850, 860);
+  createCanvas(850, 860 + BOTTOM_PANEL_SHIFT_PX);
   textAlign(CENTER, CENTER);
   frameRate(30);
   textFont("Helvetica, Arial, sans-serif");
@@ -635,7 +637,7 @@ function drawInventoryBars(row) {
   const panelW = 440;
   const panelH = 120;
   const panelX = width / 2;
-  const panelY = barY - 70;
+  const panelY = barY - 90;
 
   // card
   push();
@@ -660,7 +662,7 @@ function drawInventoryBars(row) {
 
   const barH = 56;
   const barW = 18;
-  const baseY = panelY + 26; // bottom of bar area
+  const baseY = panelY + 36; // bottom of bar area
   const xs = [panelX - 130, panelX, panelX + 130];
 
   for (let i = 0; i < bars.length; i++) {
@@ -692,12 +694,6 @@ function drawInventoryBars(row) {
     text(`${valM.toFixed(2)}×10⁶`, xs[i], baseY + 38);
   }
 
-  // scale note
-  fill(110);
-  textSize(10);
-  text("Each bar scaled to its own saturation inventory (P/λ).", panelX, panelY + panelH / 2 - 16);
-
-  pop();
 }
 
 // scenario bar
