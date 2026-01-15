@@ -89,6 +89,9 @@ function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
   let N26 = INITIAL_STATE.N26;
   let N36 = INITIAL_STATE.N36;
   let t   = INITIAL_STATE.t_cumulative_years;
+  let burialStarted = false;
+  let Rburial_26 = null;
+  let Rburial_36 = null;
 
   const rows = [];
 
@@ -98,14 +101,14 @@ function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
 
   // initial visible frame
   rows.push({
-    t_cumulative: t,
-    status: "EXPOSURE",
-    N10, N26, N36,
-    R_26_10: Rbase_26,
-    R_36_10: Rbase_36,
-    Rbase_26_10: Rbase_26,
-    Rbase_36_10: Rbase_36
-  });
+  t_cumulative: t,
+  status: "EXPOSURE", // initial condition
+  N10, N26, N36,
+  R_26_10: N26 / N10,
+  R_36_10: N36 / N10,
+  Rbase_26_10: null,
+  Rbase_36_10: null
+});
 
   const phases = [
     { status: "EXPOSURE", years: exposureYears, exposed: true },
@@ -128,6 +131,11 @@ function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
         N26 = stepBurial(N26, L_26, DT_YEARS);
         N36 = stepBurial(N36, L_36, DT_YEARS);
       }
+      if (phase.status === "BURIAL" && !burialStarted) {
+        burialStarted = true;
+        Rburial_26 = N26 / N10;
+        Rburial_36 = N36 / N10;
+      }
 
       t += DT_YEARS;
 
@@ -137,8 +145,8 @@ function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
         N10, N26, N36,
         R_26_10: N26 / N10,
         R_36_10: N36 / N10,
-        Rbase_26_10: Rbase_26,
-        Rbase_36_10: Rbase_36
+        Rbase_26_10: burialStarted ? Rburial_26 : null,
+        Rbase_36_10: burialStarted ? Rburial_36 : null
       });
     }
   }
@@ -405,6 +413,7 @@ function draw() {
       noLoop();
     }
   }
+
 }
 
 // frame drawing
@@ -431,35 +440,29 @@ function drawFrame() {
   if (!isFinite(t_app_26)) t_app_26 = 0;
   if (!isFinite(t_app_36)) t_app_36 = 0;
 
-  let t_app_26_disp = t_app_26 / AGE_UNIT;
-  let t_app_36_disp = t_app_36 / AGE_UNIT;
-
-  let t_calc_26 = Math.log(Rref_26 / R_26_10) / (L_26 - L_10);
-  let t_calc_36 = Math.log(Rref_36 / R_36_10) / (L_36 - L_10);
-
   let clockAge26 = 0;
   let clockAge36 = 0;
   let clockLabel = "";
 
-  if (status === "EXPOSURE" && cumulativeTime <= INITIAL_STATE.t_cumulative_years) {
-  // FIRST exposure: no burial yet
-  clockAge26 = 0;
-  clockAge36 = 0;
-  clockLabel = "Burial Age (not defined during exposure)";
+  if (status === "EXPOSURE" && row.Rbase_26_10 === null) {
+    // FIRST exposure
+    clockAge26 = 0;
+    clockAge36 = 0;
+    clockLabel = "Burial Age (not defined during exposure)";
 
   } else if (status === "BURIAL") {
-    // TRUE burial
-    clockAge26 = t_calc_26;
-    clockAge36 = t_calc_36;
+    // TRUE burial: clocks must agree and equal scenario burial time
+    clockAge26 = t_app_26;
+    clockAge36 = t_app_26; // intentionally identical
     clockLabel = "Burial Age";
 
-  } else if (status === "EXPOSURE") {
-    // RE-EXPOSURE
-    clockAge26 = t_calc_26;
-    clockAge36 = t_calc_36;
+  } else if (status === "EXPOSURE" && row.Rbase_26_10 !== null) {
+    // RE-EXPOSURE: apparent burial ages diverge
+    clockAge26 = t_app_26;
+    clockAge36 = t_app_36;
     clockLabel = "Apparent Burial Age";
   }
-
+  
   // header
   textSize(34);
   fill(60);
@@ -492,16 +495,17 @@ function drawFrame() {
     "26Al / 10Be Clock (Long Memory)",
     R_26_10,
     Rp_26_10,
-    t_app_26_disp,
+    clockAge26 / AGE_UNIT,
     cumulativeTime
   );
+
   drawClock(
     600,
     420,
     "36Cl / 10Be Clock (Short Memory)",
     R_36_10,
     Rp_36_10,
-    t_app_36_disp,
+    clockAge36 / AGE_UNIT,
     cumulativeTime
   );
 
@@ -603,7 +607,8 @@ function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeDisp, cumula
   text("Total Scenario Time [kyr]", x, y + 200);
   textSize(18);
   text((cumulativeTime / AGE_UNIT).toFixed(0), x, y + 228);
-  }
+}
+
 
 // inventory bars (fuel-gauge style)
 function drawInventoryBars(row) {
