@@ -386,7 +386,6 @@ function showScenarioModal(show) {
 
 function updateScenarioSummary() {
   scenarioSummary.html(
-    `Baseline: steady-state at 5 kyr · ` +
     `E ${scenarioSettings.exposureMyr.toFixed(2)} Ma · ` +
     `B ${scenarioSettings.burialMyr.toFixed(2)} Ma · ` +
     `E ${scenarioSettings.reExposureMyr.toFixed(2)} Ma`
