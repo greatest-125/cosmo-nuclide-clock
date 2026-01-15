@@ -1,5 +1,5 @@
-// Cosmo Clock
-// Last Update: January 2025
+// Cosmo Clock 
+// Last Update: January 2026 
 // MIT License
 
 let scenarioData = []; // array of {t_cumulative, status, N10, N26, N36, R_26_10, R_36_10, Rbase_26_10, Rbase_36_10}
@@ -22,21 +22,28 @@ const L_36 = Math.log(2) / 0.301e6;
 const Rp_26_10 = 7.0;
 const Rp_36_10 = 3.0;
 
-// production rates (atoms / g / yr)
+// production rates (atoms / g / yr) - unchanged
 const P_10 = 4.0;
 const P_26 = Rp_26_10 * P_10; // 28
 const P_36 = Rp_36_10 * P_10; // 12
 
-// baseline exposure (Ma) - used to initialize starting inventories (NOT shown on timeline)
-const BASELINE_MYR = 0.5;
-
-// saturation inventories (atoms / g) for simple continuous exposure with constant production
+// saturation inventories (atoms / g) for continuous exposure with constant production
 const N10_SAT = P_10 / L_10;
 const N26_SAT = P_26 / L_26;
 const N36_SAT = P_36 / L_36;
 
 // time step 
 const DT_YEARS = 5000;
+
+// --- FIXED INITIAL CONDITION (ROW-3 BASELINE) ---
+// These represent steady-state surface inventories observed at 5 kyr
+
+const INITIAL_STATE = {
+  t_cumulative_years: 5000,   // 5 kyr
+  N10: 19975.27,
+  N26: 139662.19,
+  N36: 59655.90
+};
 
 // display units
 const AGE_UNIT = 1e3;
@@ -49,7 +56,7 @@ let barX, barY, barW, barH;
 
 // scenario settings (Myr)
 let scenarioSettings = {
-  exposureMyr: 0.5,     // user-controlled exposure AFTER baseline
+  exposureMyr: 0.5,     // user-controlled exposure AFTER initialization
   burialMyr: 1.0,
   reExposureMyr: 0.5
 };
@@ -71,50 +78,29 @@ function safeRatio(num, den, fallback) {
   const r = num / den;
   return isFinite(r) ? r : fallback;
 }
-// add in 0.5 Ma baseline exposure to initialize nuclide concentrations
-function initializeBaselineExposure(baselineMyr) {
-  let years = baselineMyr * 1e6;
-  let steps = Math.round(years / DT_YEARS);
 
-  let N10 = 0;
-  let N26 = 0;
-  let N36 = 0;
-
-  for (let i = 0; i < steps; i++) {
-    N10 = stepExposure(N10, P_10, L_10, DT_YEARS);
-    N26 = stepExposure(N26, P_26, L_26, DT_YEARS);
-    N36 = stepExposure(N36, P_36, L_36, DT_YEARS);
-  }
-
-  return { N10, N26, N36 };
-}
 // Build scenario time series for: Exposure → Burial → Re-exposure
 function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
   const exposureYears = Math.max(0, exposureMyr) * 1e6;
-  const burialYears = Math.max(0, burialMyr) * 1e6;
+  const burialYears   = Math.max(0, burialMyr) * 1e6;
   const reExposureYears = Math.max(0, reExposureMyr) * 1e6;
 
-  // ---- BASELINE INITIALIZATION (0.5 Ma, not shown on timeline) ----
-  const baseline = initializeBaselineExposure(BASELINE_MYR);
-  let N10 = baseline.N10;
-  let N26 = baseline.N26;
-  let N36 = baseline.N36;
+  let N10 = INITIAL_STATE.N10;
+  let N26 = INITIAL_STATE.N26;
+  let N36 = INITIAL_STATE.N36;
+  let t   = INITIAL_STATE.t_cumulative_years;
 
-  let t = 0;
   const rows = [];
 
-  // Reference ratios at visible time zero (post-baseline).
-  // We define "burial age = 0" at this post-baseline starting point.
-  const Rbase_26 = safeRatio(N26, N10, Rp_26_10);
-  const Rbase_36 = safeRatio(N36, N10, Rp_36_10);
+  // reference ratios (define burial age = 0 here)
+  const Rbase_26 = N26 / N10;
+  const Rbase_36 = N36 / N10;
 
-  // initial visible frame (t = 0 AFTER baseline)
+  // initial visible frame
   rows.push({
-    t_cumulative: 0,
+    t_cumulative: t,
     status: "EXPOSURE",
-    N10,
-    N26,
-    N36,
+    N10, N26, N36,
     R_26_10: Rbase_26,
     R_36_10: Rbase_36,
     Rbase_26_10: Rbase_26,
@@ -123,37 +109,15 @@ function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
 
   const phases = [
     { status: "EXPOSURE", years: exposureYears, exposed: true },
-    { status: "BURIAL", years: burialYears, exposed: false },
+    { status: "BURIAL",   years: burialYears,   exposed: false },
     { status: "EXPOSURE", years: reExposureYears, exposed: true }
   ];
 
-  let prevStatus = "EXPOSURE";
-
   for (const phase of phases) {
-    // Skip zero-length phases entirely (but allow future phases to switch status)
     if (phase.years <= 0) continue;
 
-    // Add an explicit boundary frame so status changes exactly at phase boundaries
-    if (phase.status !== prevStatus) {
-      const R26b = safeRatio(N26, N10, Rp_26_10);
-      const R36b = safeRatio(N36, N10, Rp_36_10);
-
-      rows.push({
-        t_cumulative: t,
-        status: phase.status,
-        N10,
-        N26,
-        N36,
-        R_26_10: R26b,
-        R_36_10: R36b,
-        Rbase_26_10: Rbase_26,
-        Rbase_36_10: Rbase_36
-      });
-
-      prevStatus = phase.status;
-    }
-
     const steps = Math.round(phase.years / DT_YEARS);
+
     for (let i = 0; i < steps; i++) {
       if (phase.exposed) {
         N10 = stepExposure(N10, P_10, L_10, DT_YEARS);
@@ -167,25 +131,17 @@ function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
 
       t += DT_YEARS;
 
-      const R26 = safeRatio(N26, N10, Rp_26_10);
-      const R36 = safeRatio(N36, N10, Rp_36_10);
-
       rows.push({
         t_cumulative: t,
         status: phase.status,
-        N10,
-        N26,
-        N36,
-        R_26_10: R26,
-        R_36_10: R36,
+        N10, N26, N36,
+        R_26_10: N26 / N10,
+        R_36_10: N36 / N10,
         Rbase_26_10: Rbase_26,
         Rbase_36_10: Rbase_36
       });
     }
   }
-
-  // ensure we have at least 2 frames so the UI behaves
-  if (rows.length < 2) rows.push({ ...rows[0], t_cumulative: DT_YEARS });
 
   return rows;
 }
@@ -274,7 +230,7 @@ function setup() {
   // modal UI (scenario picker)
   buildScenarioModal();
 
-  // compute default scenario (0.5 Ma exposure baseline)
+  // compute default scenario
   applyScenario(scenarioSettings.exposureMyr, scenarioSettings.burialMyr, scenarioSettings.reExposureMyr);
 
   // show scenario picker on load (user can close if they want defaults)
@@ -327,7 +283,7 @@ function buildScenarioModal() {
   card.style("background", "white");
   card.style("border-radius", "16px");
   card.style("padding", "18px 18px 14px 18px");
-  card.style("width", "460px");
+  card.style("width", "540px");
   card.style("box-shadow", "0 12px 30px rgba(0,0,0,0.25)");
   card.style("font-family", "Helvetica, Arial, sans-serif");
 
@@ -335,18 +291,6 @@ function buildScenarioModal() {
   title.parent(card);
   title.style("font-size", "16px");
   title.style("margin-bottom", "8px");
-
-  let note = createDiv(
-  "Note: The clock starts <b>after</b> an initial <b>0.5 Ma exposure</b> " +
-  "used to initialize all nuclide concentrations. " +
-  "This baseline exposure is not shown on the timeline."
-);
-
-  note.parent(card);
-  note.style("font-size", "13px");
-  note.style("line-height", "1.25");
-  note.style("color", "#333");
-  note.style("margin-bottom", "14px");
 
   // form rows
   const rowStyle = (r) => {
@@ -434,6 +378,7 @@ function showScenarioModal(show) {
 
 function updateScenarioSummary() {
   scenarioSummary.html(
+    `Baseline: steady-state at 5 kyr · ` +
     `E ${scenarioSettings.exposureMyr.toFixed(2)} Ma · ` +
     `B ${scenarioSettings.burialMyr.toFixed(2)} Ma · ` +
     `E ${scenarioSettings.reExposureMyr.toFixed(2)} Ma`
@@ -474,20 +419,46 @@ function drawFrame() {
   let cumulativeTime = row.t_cumulative;
   let status = row.status;
 
-  // calculate *apparent* burial ages from ratios, referenced to the post-baseline starting ratios.
-// t_app = ln(R_ref / R_measured) / (λ_x - λ_10)
-// Note: During exposure, this quantity can be negative because production drives ratios toward surface values.
-const Rref_26 = isFinite(row.Rbase_26_10) ? row.Rbase_26_10 : Rp_26_10;
-const Rref_36 = isFinite(row.Rbase_36_10) ? row.Rbase_36_10 : Rp_36_10;
+  // calculate *apparent* burial ages from ratios, referenced to the starting ratios.
+  // t_app = ln(R_ref / R_measured) / (λ_x - λ_10)
+  // Note: During exposure, this quantity can be negative because production drives ratios toward surface values.
+  const Rref_26 = isFinite(row.Rbase_26_10) ? row.Rbase_26_10 : Rp_26_10;
+  const Rref_36 = isFinite(row.Rbase_36_10) ? row.Rbase_36_10 : Rp_36_10;
 
-let t_app_26 = Math.log(Rref_26 / R_26_10) / (L_26 - L_10);
-let t_app_36 = Math.log(Rref_36 / R_36_10) / (L_36 - L_10);
+  let t_app_26 = Math.log(Rref_26 / R_26_10) / (L_26 - L_10);
+  let t_app_36 = Math.log(Rref_36 / R_36_10) / (L_36 - L_10);
 
-if (!isFinite(t_app_26)) t_app_26 = 0;
-if (!isFinite(t_app_36)) t_app_36 = 0;
+  if (!isFinite(t_app_26)) t_app_26 = 0;
+  if (!isFinite(t_app_36)) t_app_36 = 0;
 
-let t_app_26_disp = t_app_26 / AGE_UNIT;
-let t_app_36_disp = t_app_36 / AGE_UNIT;
+  let t_app_26_disp = t_app_26 / AGE_UNIT;
+  let t_app_36_disp = t_app_36 / AGE_UNIT;
+
+  let t_calc_26 = Math.log(Rref_26 / R_26_10) / (L_26 - L_10);
+  let t_calc_36 = Math.log(Rref_36 / R_36_10) / (L_36 - L_10);
+
+  let clockAge26 = 0;
+  let clockAge36 = 0;
+  let clockLabel = "";
+
+  if (status === "EXPOSURE" && cumulativeTime <= INITIAL_STATE.t_cumulative_years) {
+  // FIRST exposure: no burial yet
+  clockAge26 = 0;
+  clockAge36 = 0;
+  clockLabel = "Burial Age (not defined during exposure)";
+
+  } else if (status === "BURIAL") {
+    // TRUE burial
+    clockAge26 = t_calc_26;
+    clockAge36 = t_calc_36;
+    clockLabel = "Burial Age";
+
+  } else if (status === "EXPOSURE") {
+    // RE-EXPOSURE
+    clockAge26 = t_calc_26;
+    clockAge36 = t_calc_36;
+    clockLabel = "Apparent Burial Age";
+  }
 
   // header
   textSize(34);
@@ -505,11 +476,14 @@ let t_app_36_disp = t_app_36 / AGE_UNIT;
     text("-", width / 2, 180);
   }
 
-  // note on baseline exposure
+  // note on baseline exposure / initialization
   textSize(12);
   fill(90);
-  text(`Baseline: 0.5 Ma exposure for all nuclides (not shown).`, width / 2, 206);
-  text(`Apparent burial age is referenced to the post-baseline ratios (so it starts at 0 at t=0).`, width / 2, 222);
+  text(
+    "Initialization uses surface inventories observed at 5 kyr.",
+    width / 2,
+    206
+  );
 
   // clocks
   drawClock(
@@ -629,8 +603,7 @@ function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeDisp, cumula
   text("Total Scenario Time [kyr]", x, y + 200);
   textSize(18);
   text((cumulativeTime / AGE_UNIT).toFixed(0), x, y + 228);
-}
-
+  }
 
 // inventory bars (fuel-gauge style)
 function drawInventoryBars(row) {
@@ -694,6 +667,7 @@ function drawInventoryBars(row) {
     text(`${valM.toFixed(2)}×10⁶`, xs[i], baseY + 38);
   }
 
+  pop();
 }
 
 // scenario bar
