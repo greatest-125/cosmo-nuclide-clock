@@ -8,6 +8,8 @@ let isPlaying = false;
 let playButton, restartButton, speedSlider, speedLabel;
 let frameCounter = 0;
 let isDragging = false;
+let controlBar;
+let exportButton;
 
 // UI: scenario picker
 let scenarioButton, scenarioSummary;
@@ -177,7 +179,7 @@ function setup() {
   textFont("Helvetica, Arial, sans-serif");
 
   // control bar
-  let controlBar = createDiv();
+  controlBar = createDiv();
   controlBar.id("control-bar");
   controlBar.style("position", "fixed");
   controlBar.style("top", "10px");
@@ -216,6 +218,12 @@ function setup() {
   scenarioSummary.style("margin-left", "4px");
   scenarioSummary.style("color", "#333");
   scenarioSummary.parent(controlBar);
+
+  // export spreadsheet - uncomment if you want to see & download the values
+  // exportButton = createButton("Export Spreadsheet");
+  // styleButton(exportButton, "#455a64");
+  // exportButton.parent(controlBar);
+  // exportButton.mousePressed(downloadSpreadsheet);
 
   // speed
   speedLabel = createSpan("Speed 1.0×");
@@ -737,4 +745,66 @@ function updateFrameFromMouse() {
   let n = scenarioData.length;
   currentFrame = int(map(relX, 0, barW, 0, n - 1));
   drawFrame();
+}
+
+function computeApparentBurialAges(row) {
+  if (row.status === "EXPOSURE" && row.Rbase_26_10 === null) {
+    return { t26: 0, t36: 0 };
+  }
+
+  const Rref26 = row.Rbase_26_10 ?? Rp_26_10;
+  const Rref36 = row.Rbase_36_10 ?? Rp_36_10;
+
+  const t26 = Math.log(Rref26 / row.R_26_10) / (L_26 - L_10);
+  const t36 = Math.log(Rref36 / row.R_36_10) / (L_36 - L_10);
+
+  if (row.status === "BURIAL") {
+    return { t26: t26, t36: t26 }; // must be identical
+  }
+
+  return { t26, t36 };
+}
+
+function buildSpreadsheetRows() {
+  return scenarioData.map(row => {
+    const { t26, t36 } = computeApparentBurialAges(row);
+
+    return {
+      "Cumulative Time (yr)": row.t_cumulative,
+      "26Al/10Be ratio": row.R_26_10,
+      "36Cl/10Be ratio": row.R_36_10,
+      "Status": row.status,
+      "Apparent Burial Age 26Al/10Be (yr)": t26,
+      "Apparent Burial Age 36Cl/10Be (yr)": t36,
+      "N26Al": row.N26,
+      "N36Cl": row.N36,
+      "N10Be": row.N10
+    };
+  });
+}
+
+function toCSV(rows) {
+  const headers = Object.keys(rows[0]);
+  const lines = [
+    headers.join(","),
+    ...rows.map(r =>
+      headers.map(h => r[h]).join(",")
+    )
+  ];
+  return lines.join("\n");
+}
+
+function downloadSpreadsheet() {
+  const rows = buildSpreadsheetRows();
+  const csv = toCSV(rows);
+
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "cosmo_clock_scenario.csv";
+  a.click();
+
+  URL.revokeObjectURL(url);
 }
