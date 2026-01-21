@@ -9,10 +9,8 @@ let playButton, restartButton, speedSlider, speedLabel;
 let frameCounter = 0;
 let isDragging = false;
 let controlBar;
-let modeSelect; // New Dropdown
-let isDemoMode = false; // State tracker
 
-// UI: scenario picker (Restored for Custom Mode)
+// UI: scenario picker
 let scenarioButton, scenarioSummary;
 let scenarioModal, exposureInput, burialInput, reExposureInput, closeModalButton, applyModalButton;
 
@@ -55,7 +53,7 @@ const BOTTOM_PANEL_SHIFT_PX = 40;
 // scenario bar
 let barX, barY, barW, barH;
 
-// Settings
+// Settings (Default: 0.5 -> 1.0 -> 0.5)
 let scenarioSettings = {
   exposureMyr: 0.5,     
   burialMyr: 1.0,
@@ -180,20 +178,6 @@ function setup() {
   controlBar.style("font-size", "14px");
   controlBar.style("z-index", "1000");
 
-  // MODE SELECTOR
-  createSpan("Mode:").parent(controlBar).style("font-weight", "bold").style("color", "#444");
-  modeSelect = createSelect();
-  modeSelect.parent(controlBar);
-  modeSelect.option("Custom Scenario");
-  modeSelect.option("Visual Demo (Default)");
-  
-  // Set default to Visual Demo
-  modeSelect.selected("Visual Demo (Default)"); 
-  
-  modeSelect.style("padding", "4px");
-  modeSelect.style("border-radius", "6px");
-  modeSelect.changed(handleModeChange);
-
   // play/pause
   playButton = createButton("Play / Pause");
   styleButton(playButton, "#2e7d32");
@@ -215,7 +199,6 @@ function setup() {
   scenarioSummary = createSpan("");
   scenarioSummary.style("margin-left", "4px");
   scenarioSummary.style("color", "#333");
-  // Removed monospace to match the "clean" look requested
   scenarioSummary.parent(controlBar);
 
   // speed
@@ -236,36 +219,13 @@ function setup() {
   barX = (width - barW) / 2;
   barY = height - 90;
   
-  // Build the modal for Custom Mode
+  // Build the modal for customization
   buildScenarioModal();
 
   // Initial Scenario
   applyScenario(scenarioSettings.exposureMyr, scenarioSettings.burialMyr, scenarioSettings.reExposureMyr);
-  
-  // Initial state check
-  handleModeChange();
 
   noLoop();
-  drawFrame();
-}
-
-function handleModeChange() {
-  const mode = modeSelect.value();
-  
-  if (mode === "Visual Demo (Default)") {
-    isDemoMode = true;
-    // Force specific settings
-    applyScenario(0.5, 1.0, 0.5);
-    // Hide customization
-    scenarioButton.hide();
-    scenarioSummary.hide();
-  } else {
-    isDemoMode = false;
-    // Allow customization
-    scenarioButton.show();
-    scenarioSummary.show();
-  }
-  
   drawFrame();
 }
 
@@ -403,7 +363,6 @@ function showScenarioModal(show) {
 }
 
 function updateScenarioSummary() {
-  // UPDATED: Use the specific "E ... B ... E ..." format requested
   scenarioSummary.html(
     `E ${scenarioSettings.exposureMyr.toFixed(2)} Ma · ` +
     `B ${scenarioSettings.burialMyr.toFixed(2)} Ma · ` +
@@ -486,19 +445,10 @@ function drawFrame() {
   fill(90);
   text("Initialization uses surface inventories observed at 5 kyr.", width / 2, 206);
 
-  // --- RESPONSIVE LAYOUT CALCULATION ---
-  
-  let clock1_X, clock2_X;
-  
-  if (isDemoMode) {
-    // Left-shifted positions
-    clock1_X = 300;
-    clock2_X = 650;
-  } else {
-    // Centered positions in 1250px canvas
-    clock1_X = 625 - 175; // 450
-    clock2_X = 625 + 175; // 800
-  }
+  // --- FIXED LAYOUT (Side-by-Side) ---
+  const clock1_X = 300;
+  const clock2_X = 650;
+  const cartoon_X = 900;
   
   drawClock(
     clock1_X,
@@ -520,10 +470,7 @@ function drawFrame() {
     cumulativeTime
   );
 
-  // --- DRAW THE LANDSCAPE CARTOON (Only in Demo Mode) ---
-  if (isDemoMode) {
-    drawLandscape(900, 240, 300, 360, status);
-  }
+  drawLandscape(cartoon_X, 240, 300, 360, status);
 
   drawInventoryBars(row);
   drawScenarioBar();
