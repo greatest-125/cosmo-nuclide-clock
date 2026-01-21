@@ -53,6 +53,10 @@ const BOTTOM_PANEL_SHIFT_PX = 40;
 // scenario bar
 let barX, barY, barW, barH;
 
+// Colors matching the bar
+const COLOR_EXPO = [230, 38, 38];   // Red
+const COLOR_BURIAL = [0, 92, 255];  // Blue
+
 // Settings (Default: 0.5 -> 1.0 -> 0.5)
 let scenarioSettings = {
   exposureMyr: 0.5,     
@@ -149,7 +153,7 @@ function applyScenario(exposureMyr, burialMyr, reExposureMyr) {
   isPlaying = false;
   frameCounter = 0;
   noLoop();
-  updateScenarioSummary(); // Update the text in the bar
+  updateScenarioSummary(); 
   drawFrame();
 }
 
@@ -433,10 +437,10 @@ function drawFrame() {
   text("Scenario:", width / 2, 150);
 
   if (status === "BURIAL") {
-    fill(0, 0, 200);
+    fill(COLOR_BURIAL);
     text("BURIAL", width / 2, 180);
   } else if (status === "EXPOSURE") {
-    fill(200, 0, 0);
+    fill(COLOR_EXPO);
     text("EXPOSURE", width / 2, 180);
   }
 
@@ -564,9 +568,8 @@ function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeDisp, cumula
   text(ageText, x, y + 170);
 }
 
-// --- CARTOON MODULE ---
+// --- CARTOON MODULE (Updated) ---
 function drawLandscape(x, y, w, h, status) {
-  // x, y is top-left corner
   push();
   translate(x, y);
   
@@ -579,48 +582,57 @@ function drawLandscape(x, y, w, h, status) {
   rect(0, 0, w, h, 18);
   drawingContext.shadowBlur = 0;
   
-  // Clip drawing to card area 
+  // Clip area 
   let margin = 15;
   let contentW = w - margin*2;
   let contentH = h - margin*2;
   let contentX = margin;
   let contentY = margin;
   
-  // Title
   fill(30);
   textSize(16);
   textAlign(CENTER, TOP);
   text("Visual Scenario", w/2, 15);
   
-  // --- SCENE DRAWING ---
   let sceneY = 50;
   let sceneH = h - 70;
-  let groundY = sceneY + sceneH * 0.7; // horizon line
+  let groundY = sceneY + sceneH * 0.7; 
   
   // Sky
   fill(200, 230, 255);
   rect(contentX, sceneY, contentW, groundY - sceneY);
   
-  // Bedrock (Brown/Gray)
-  fill(100, 90, 80);
+  // Bedrock - NOW RED (Exposure color)
+  fill(COLOR_EXPO); 
   rect(contentX, groundY, contentW, (sceneY + sceneH) - groundY);
   
   // Label: Bedrock
-  fill(255, 255, 255, 180);
+  fill(255, 255, 255, 190);
   textSize(14);
   text("Bedrock", w/2, groundY + 30);
   
   if (status === "BURIAL") {
     // --- BURIAL MODE ---
-    fill(220, 240, 255, 230); // Ice color
-    stroke(180, 210, 230);
+    // Ice Sheet - NOW BLUE (Burial color)
+    fill(0, 92, 255, 230); // Blue with transparency
+    stroke(0, 60, 180);
     strokeWeight(2);
-    rect(contentX, sceneY, contentW, groundY - sceneY + 5); 
+    
+    // Parabolic Dome Shape
+    beginShape();
+    vertex(contentX, groundY); // Bottom Left
+    // Control points for bezier to make a dome
+    bezierVertex(
+        contentX + contentW * 0.2, sceneY + 20, 
+        contentX + contentW * 0.8, sceneY + 20, 
+        contentX + contentW, groundY
+    ); // Top curve
+    vertex(contentX + contentW, groundY); // Bottom Right
+    endShape(CLOSE);
     
     noStroke();
-    fill(50, 80, 120);
-    text("Ice Sheet", w/2, sceneY + 40);
-    text("(Shielding)", w/2, sceneY + 60);
+    fill(255);
+    text("Ice Sheet", w/2, sceneY + 60);
     
   } else {
     // --- EXPOSURE MODE ---
@@ -630,11 +642,9 @@ function drawLandscape(x, y, w, h, status) {
     let rayCount = 8;
     for(let i=0; i<rayCount; i++) {
         let xPos = contentX + (contentW * (i+1)/(rayCount+1));
-        // Simple animation loop
         let offset = (frameCount * 3 + i * 20) % (groundY - sceneY); 
         let yPos = sceneY + offset;
         
-        // Dash line
         if(yPos < groundY) {
             line(xPos, yPos, xPos, yPos - 15);
             line(xPos, yPos, xPos - 3, yPos - 5);
@@ -645,9 +655,70 @@ function drawLandscape(x, y, w, h, status) {
     noStroke();
     fill(200, 100, 0);
     text("Cosmic Rays", w/2, sceneY + 30);
-    text("(Nuclide Production)", w/2, sceneY + 50);
   }
   
+  pop();
+}
+
+// --- UPDATED BAR with Ticks ---
+function drawScenarioBar() {
+  push();
+  rectMode(CORNER);
+  noStroke();
+  drawingContext.shadowBlur = 10;
+  drawingContext.shadowColor = "rgba(0,0,0,0.12)";
+  fill(255);
+  rect(barX - 6, barY - 6, barW + 12, barH + 12, 10);
+  drawingContext.shadowBlur = 0;
+
+  let n = scenarioData.length;
+  let segW = barW / n;
+
+  for (let i = 0; i < n; i++) {
+    let s = scenarioData[i].status;
+    if (s === "BURIAL") fill(COLOR_BURIAL);
+    else if (s === "EXPOSURE") fill(COLOR_EXPO);
+    else fill(200);
+    rect(barX + i * segW, barY, segW + 1, barH);
+  }
+
+  // Ticks & Labels
+  if (n > 1) {
+    let totalTime = scenarioData[n-1].t_cumulative;
+    // Aim for ticks roughly every 0.5 Ma or so
+    // totalTime is in years (e.g. 2,000,000)
+    let maxMa = totalTime / 1e6;
+    let tickIntervalMa = 0.5; 
+    if (maxMa <= 1.0) tickIntervalMa = 0.25;
+    if (maxMa > 3.0) tickIntervalMa = 1.0;
+    
+    fill(80);
+    textSize(11);
+    textAlign(CENTER, TOP);
+    stroke(150);
+    strokeWeight(1);
+    
+    for (let ma = 0; ma <= maxMa + 0.001; ma += tickIntervalMa) {
+        // map ma to pixels
+        // we need to find the frame index that corresponds to this time
+        let tYears = ma * 1e6;
+        // The bar maps index 0..n-1 to 0..barW
+        // We need to approximate the x-pos based on time
+        let xPos = map(tYears, 0, totalTime, barX, barX + barW);
+        
+        // Draw tick
+        line(xPos, barY + barH, xPos, barY + barH + 6);
+        noStroke();
+        text(ma.toFixed(1) + " Ma", xPos, barY + barH + 8);
+        stroke(150);
+    }
+  }
+
+  let arrowX = barX + map(currentFrame, 0, n - 1, 0, barW);
+  fill("#FFD600");
+  noStroke();
+  triangle(arrowX - 9, barY - 14, arrowX + 9, barY - 14, arrowX, barY - 3);
+
   pop();
 }
 
@@ -707,38 +778,6 @@ function drawInventoryBars(row) {
     const valM = b.N / 1e6;
     text(`${valM.toFixed(2)}×10⁶`, xs[i], baseY + 38);
   }
-  pop();
-}
-
-function drawScenarioBar() {
-  push();
-  rectMode(CORNER);
-  noStroke();
-  drawingContext.shadowBlur = 10;
-  drawingContext.shadowColor = "rgba(0,0,0,0.12)";
-  fill(255);
-  rect(barX - 6, barY - 6, barW + 12, barH + 12, 10);
-  drawingContext.shadowBlur = 0;
-
-  let n = scenarioData.length;
-  let segW = barW / n;
-
-  for (let i = 0; i < n; i++) {
-    let s = scenarioData[i].status;
-    if (s === "BURIAL") fill(0, 92, 255);
-    else if (s === "EXPOSURE") fill(230, 38, 38);
-    else fill(200);
-    rect(barX + i * segW, barY, segW + 1, barH);
-  }
-
-  let arrowX = barX + map(currentFrame, 0, n - 1, 0, barW);
-  fill("#FFD600");
-  noStroke();
-  triangle(arrowX - 9, barY - 14, arrowX + 9, barY - 14, arrowX, barY - 3);
-
-  fill(50);
-  textSize(16);
-  text("Scenario Overview", width / 2, barY + barH + 32);
   pop();
 }
 
