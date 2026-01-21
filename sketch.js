@@ -568,7 +568,7 @@ function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeDisp, cumula
   text(ageText, x, y + 170);
 }
 
-// --- CARTOON MODULE (Updated) ---
+// --- CARTOON MODULE (Updated Shape - FLUSH) ---
 function drawLandscape(x, y, w, h, status) {
   push();
   translate(x, y);
@@ -602,7 +602,7 @@ function drawLandscape(x, y, w, h, status) {
   fill(200, 230, 255);
   rect(contentX, sceneY, contentW, groundY - sceneY);
   
-  // Bedrock - NOW RED (Exposure color)
+  // Bedrock - RED (Exposure color)
   fill(COLOR_EXPO); 
   rect(contentX, groundY, contentW, (sceneY + sceneH) - groundY);
   
@@ -613,21 +613,33 @@ function drawLandscape(x, y, w, h, status) {
   
   if (status === "BURIAL") {
     // --- BURIAL MODE ---
-    // Ice Sheet - NOW BLUE (Burial color)
+    // Ice Sheet - BLUE (Burial color)
     fill(0, 92, 255, 230); // Blue with transparency
     stroke(0, 60, 180);
     strokeWeight(2);
     
-    // Parabolic Dome Shape
+    // Parabolic/Log Slope Shape (Gentle rise)
+    let iceTopY = sceneY + 15; // Summit height
+    // Start height (Left) - significantly above ground to reduce steepness
+    let iceLeftY = groundY - (groundY - sceneY) * 0.6;
+    
     beginShape();
-    vertex(contentX, groundY); // Bottom Left
-    // Control points for bezier to make a dome
+    // 1. Bottom Left (Flush)
+    vertex(contentX, groundY);
+    
+    // 2. Top Left (High start)
+    vertex(contentX, iceLeftY);
+    
+    // 3. The Curve: Gentle rise to summit
     bezierVertex(
-        contentX + contentW * 0.2, sceneY + 20, 
-        contentX + contentW * 0.8, sceneY + 20, 
-        contentX + contentW, groundY
-    ); // Top curve
-    vertex(contentX + contentW, groundY); // Bottom Right
+      contentX + contentW * 0.25, iceTopY,   // CP1
+      contentX + contentW * 0.6, iceTopY,    // CP2
+      contentX + contentW, iceTopY + 2       // Top Right (Flush)
+    );
+    
+    // 4. Bottom Right (Flush)
+    vertex(contentX + contentW, groundY);
+    
     endShape(CLOSE);
     
     noStroke();
@@ -685,8 +697,6 @@ function drawScenarioBar() {
   // Ticks & Labels
   if (n > 1) {
     let totalTime = scenarioData[n-1].t_cumulative;
-    // Aim for ticks roughly every 0.5 Ma or so
-    // totalTime is in years (e.g. 2,000,000)
     let maxMa = totalTime / 1e6;
     let tickIntervalMa = 0.5; 
     if (maxMa <= 1.0) tickIntervalMa = 0.25;
@@ -699,14 +709,9 @@ function drawScenarioBar() {
     strokeWeight(1);
     
     for (let ma = 0; ma <= maxMa + 0.001; ma += tickIntervalMa) {
-        // map ma to pixels
-        // we need to find the frame index that corresponds to this time
         let tYears = ma * 1e6;
-        // The bar maps index 0..n-1 to 0..barW
-        // We need to approximate the x-pos based on time
         let xPos = map(tYears, 0, totalTime, barX, barX + barW);
         
-        // Draw tick
         line(xPos, barY + barH, xPos, barY + barH + 6);
         noStroke();
         text(ma.toFixed(1) + " Ma", xPos, barY + barH + 8);
