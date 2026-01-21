@@ -186,7 +186,10 @@ function setup() {
   modeSelect.parent(controlBar);
   modeSelect.option("Custom Scenario");
   modeSelect.option("Visual Demo (Default)");
-  modeSelect.selected("Visual Demo (Default)"); // Default to Visual Demo
+  
+  // Set default to Visual Demo
+  modeSelect.selected("Visual Demo (Default)"); 
+  
   modeSelect.style("padding", "4px");
   modeSelect.style("border-radius", "6px");
   modeSelect.changed(handleModeChange);
@@ -203,7 +206,7 @@ function setup() {
   restartButton.parent(controlBar);
   restartButton.mousePressed(restartAnimation);
   
-  // scenario button + summary (RESTORED)
+  // scenario button + summary
   scenarioButton = createButton("Scenario Settings");
   styleButton(scenarioButton, "#6a1b9a");
   scenarioButton.parent(controlBar);
@@ -212,7 +215,7 @@ function setup() {
   scenarioSummary = createSpan("");
   scenarioSummary.style("margin-left", "4px");
   scenarioSummary.style("color", "#333");
-  scenarioSummary.style("font-family", "monospace");
+  // Removed monospace to match the "clean" look requested
   scenarioSummary.parent(controlBar);
 
   // speed
@@ -261,10 +264,8 @@ function handleModeChange() {
     // Allow customization
     scenarioButton.show();
     scenarioSummary.show();
-    // We don't necessarily reset the scenario here; we let the user keep current or change it
   }
   
-  // Redraw to update layout
   drawFrame();
 }
 
@@ -294,7 +295,7 @@ function restartAnimation() {
   drawFrame();
 }
 
-// ---------- scenario modal (RESTORED) ----------
+// ---------- scenario modal ----------
 function buildScenarioModal() {
   scenarioModal = createDiv();
   scenarioModal.id("scenario-modal");
@@ -402,10 +403,11 @@ function showScenarioModal(show) {
 }
 
 function updateScenarioSummary() {
+  // UPDATED: Use the specific "E ... B ... E ..." format requested
   scenarioSummary.html(
-    `[ ${scenarioSettings.exposureMyr.toFixed(2)} - ` +
-    `${scenarioSettings.burialMyr.toFixed(2)} - ` +
-    `${scenarioSettings.reExposureMyr.toFixed(2)} ]`
+    `E ${scenarioSettings.exposureMyr.toFixed(2)} Ma · ` +
+    `B ${scenarioSettings.burialMyr.toFixed(2)} Ma · ` +
+    `E ${scenarioSettings.reExposureMyr.toFixed(2)} Ma`
   );
 }
 
@@ -485,8 +487,6 @@ function drawFrame() {
   text("Initialization uses surface inventories observed at 5 kyr.", width / 2, 206);
 
   // --- RESPONSIVE LAYOUT CALCULATION ---
-  // If Demo Mode: Clocks shift left, Cartoon appears right.
-  // If Custom Mode: Clocks center, Cartoon hidden.
   
   let clock1_X, clock2_X;
   
@@ -496,8 +496,6 @@ function drawFrame() {
     clock2_X = 650;
   } else {
     // Centered positions in 1250px canvas
-    // Width/2 is 625.
-    // Separation is 350px (same as 650-300)
     clock1_X = 625 - 175; // 450
     clock2_X = 625 + 175; // 800
   }
