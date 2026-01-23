@@ -36,6 +36,14 @@ const N36_SAT = P_36 / L_36;
 // time step 
 const DT_YEARS = 5000;
 
+// precompute step factors to avoid per-iteration exp calls
+const DECAY_10 = Math.exp(-L_10 * DT_YEARS);
+const DECAY_26 = Math.exp(-L_26 * DT_YEARS);
+const DECAY_36 = Math.exp(-L_36 * DT_YEARS);
+const EXPOSURE_STEP_10 = (P_10 / L_10) * (1 - DECAY_10);
+const EXPOSURE_STEP_26 = (P_26 / L_26) * (1 - DECAY_26);
+const EXPOSURE_STEP_36 = (P_36 / L_36) * (1 - DECAY_36);
+
 // --- FIXED INITIAL CONDITION ---
 const INITIAL_STATE = {
   t_cumulative_years: 5000,   
@@ -65,13 +73,28 @@ let scenarioSettings = {
 };
 
 // Helper Math Functions
-function stepExposure(N0, P, lambda, dtYears) {
-  const e = Math.exp(-lambda * dtYears);
-  return (P / lambda) * (1 - e) + N0 * e;
+function stepExposure(N0, decayFactor, productionStep) {
+  return productionStep + N0 * decayFactor;
 }
 
-function stepBurial(N0, lambda, dtYears) {
-  return N0 * Math.exp(-lambda * dtYears);
+function stepBurial(N0, decayFactor) {
+  return N0 * decayFactor;
+}
+
+function buildRow(t, status, N10, N26, N36, Rburial26, Rburial36) {
+  const R_26_10 = N26 / N10;
+  const R_36_10 = N36 / N10;
+  return {
+    t_cumulative: t,
+    status,
+    N10,
+    N26,
+    N36,
+    R_26_10,
+    R_36_10,
+    Rbase_26_10: Rburial26,
+    Rbase_36_10: Rburial36
+  };
 }
 
 function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
@@ -90,15 +113,7 @@ function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
   const rows = [];
   
   // Initial frame
-  rows.push({
-    t_cumulative: t,
-    status: "EXPOSURE", 
-    N10, N26, N36,
-    R_26_10: N26 / N10,
-    R_36_10: N36 / N10,
-    Rbase_26_10: null,
-    Rbase_36_10: null
-  });
+  rows.push(buildRow(t, "EXPOSURE", N10, N26, N36, null, null));
 
   const phases = [
     { status: "EXPOSURE", years: exposureYears, exposed: true },
@@ -108,17 +123,17 @@ function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
 
   for (const phase of phases) {
     if (phase.years <= 0) continue;
-    const steps = Math.round(phase.years / DT_YEARS);
+    const steps = Math.max(1, Math.round(phase.years / DT_YEARS));
 
     for (let i = 0; i < steps; i++) {
       if (phase.exposed) {
-        N10 = stepExposure(N10, P_10, L_10, DT_YEARS);
-        N26 = stepExposure(N26, P_26, L_26, DT_YEARS);
-        N36 = stepExposure(N36, P_36, L_36, DT_YEARS);
+        N10 = stepExposure(N10, DECAY_10, EXPOSURE_STEP_10);
+        N26 = stepExposure(N26, DECAY_26, EXPOSURE_STEP_26);
+        N36 = stepExposure(N36, DECAY_36, EXPOSURE_STEP_36);
       } else {
-        N10 = stepBurial(N10, L_10, DT_YEARS);
-        N26 = stepBurial(N26, L_26, DT_YEARS);
-        N36 = stepBurial(N36, L_36, DT_YEARS);
+        N10 = stepBurial(N10, DECAY_10);
+        N26 = stepBurial(N26, DECAY_26);
+        N36 = stepBurial(N36, DECAY_36);
       }
       if (phase.status === "BURIAL" && !burialStarted) {
         burialStarted = true;
@@ -128,15 +143,17 @@ function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
 
       t += DT_YEARS;
 
-      rows.push({
-        t_cumulative: t,
-        status: phase.status,
-        N10, N26, N36,
-        R_26_10: N26 / N10,
-        R_36_10: N36 / N10,
-        Rbase_26_10: burialStarted ? Rburial_26 : null,
-        Rbase_36_10: burialStarted ? Rburial_36 : null
-      });
+      rows.push(
+        buildRow(
+          t,
+          phase.status,
+          N10,
+          N26,
+          N36,
+          burialStarted ? Rburial_26 : null,
+          burialStarted ? Rburial_36 : null
+        )
+      );
     }
   }
   return rows;
@@ -167,20 +184,7 @@ function setup() {
   // control bar
   controlBar = createDiv();
   controlBar.id("control-bar");
-  controlBar.style("position", "fixed");
-  controlBar.style("top", "10px");
-  controlBar.style("left", "50%");
-  controlBar.style("transform", "translateX(-50%)");
-  controlBar.style("background", "rgba(255,255,255,0.95)");
-  controlBar.style("backdrop-filter", "blur(6px)");
-  controlBar.style("padding", "8px 16px");
-  controlBar.style("border-radius", "12px");
-  controlBar.style("box-shadow", "0 2px 12px rgba(0,0,0,0.12)");
-  controlBar.style("display", "flex");
-  controlBar.style("align-items", "center");
-  controlBar.style("gap", "12px");
-  controlBar.style("font-size", "14px");
-  controlBar.style("z-index", "1000");
+  controlBar.addClass("control-bar");
 
   // play/pause
   playButton = createButton("Play / Pause");
@@ -201,18 +205,17 @@ function setup() {
   scenarioButton.mousePressed(() => showScenarioModal(true));
 
   scenarioSummary = createSpan("");
-  scenarioSummary.style("margin-left", "4px");
-  scenarioSummary.style("color", "#333");
+  scenarioSummary.addClass("scenario-summary");
   scenarioSummary.parent(controlBar);
 
   // speed
   speedLabel = createSpan("Speed 1.0×");
-  speedLabel.style("margin-left", "6px");
+  speedLabel.addClass("speed-label");
   speedLabel.parent(controlBar);
 
   speedSlider = createSlider(0.1, 5, 1, 0.1);
   speedSlider.parent(controlBar);
-  speedSlider.style("width", "120px");
+  speedSlider.addClass("speed-slider");
   speedSlider.input(() => {
     speedLabel.html(`Speed ${speedSlider.value().toFixed(1)}×`);
   });
@@ -234,15 +237,8 @@ function setup() {
 }
 
 function styleButton(btn, color) {
-  btn.style("font-size", "13px");
-  btn.style("padding", "6px 12px");
-  btn.style("border", "none");
-  btn.style("border-radius", "8px");
-  btn.style("color", "white");
+  btn.addClass("ui-button");
   btn.style("background-color", color);
-  btn.style("cursor", "pointer");
-  btn.mouseOver(() => btn.style("opacity", "0.85"));
-  btn.mouseOut(() => btn.style("opacity", "1"));
 }
 
 function togglePlay() {
@@ -263,77 +259,48 @@ function restartAnimation() {
 function buildScenarioModal() {
   scenarioModal = createDiv();
   scenarioModal.id("scenario-modal");
-  scenarioModal.style("position", "fixed");
-  scenarioModal.style("inset", "0");
-  scenarioModal.style("display", "none");
-  scenarioModal.style("align-items", "center");
-  scenarioModal.style("justify-content", "center");
-  scenarioModal.style("background", "rgba(0,0,0,0.35)");
-  scenarioModal.style("z-index", "2000");
+  scenarioModal.addClass("modal");
 
   let card = createDiv();
   card.parent(scenarioModal);
-  card.style("background", "white");
-  card.style("border-radius", "16px");
-  card.style("padding", "18px 18px 14px 18px");
-  card.style("width", "540px");
-  card.style("box-shadow", "0 12px 30px rgba(0,0,0,0.25)");
-  card.style("font-family", "Helvetica, Arial, sans-serif");
+  card.addClass("modal-card");
 
   let title = createDiv("<b>Choose scenario (Exposure → Burial → Re-exposure)</b>");
   title.parent(card);
-  title.style("font-size", "16px");
-  title.style("margin-bottom", "8px");
+  title.addClass("modal-title");
 
   // form rows
   const rowStyle = (r) => {
-    r.style("display", "grid");
-    r.style("grid-template-columns", "1fr 140px");
-    r.style("gap", "10px");
-    r.style("align-items", "center");
-    r.style("margin", "8px 0");
+    r.addClass("modal-row");
   };
 
   let r1 = createDiv(); r1.parent(card); rowStyle(r1);
   createDiv("Initial exposure duration (Ma)").parent(r1).style("font-size", "13px");
   exposureInput = createInput(String(scenarioSettings.exposureMyr));
   exposureInput.parent(r1);
-  exposureInput.style("padding", "6px 8px");
-  exposureInput.style("border", "1px solid #ddd");
-  exposureInput.style("border-radius", "10px");
+  exposureInput.addClass("modal-input");
 
   let r2 = createDiv(); r2.parent(card); rowStyle(r2);
   createDiv("Burial duration (Ma)").parent(r2).style("font-size", "13px");
   burialInput = createInput(String(scenarioSettings.burialMyr));
   burialInput.parent(r2);
-  burialInput.style("padding", "6px 8px");
-  burialInput.style("border", "1px solid #ddd");
-  burialInput.style("border-radius", "10px");
+  burialInput.addClass("modal-input");
 
   let r3 = createDiv(); r3.parent(card); rowStyle(r3);
   createDiv("Re-exposure duration (Ma)").parent(r3).style("font-size", "13px");
   reExposureInput = createInput(String(scenarioSettings.reExposureMyr));
   reExposureInput.parent(r3);
-  reExposureInput.style("padding", "6px 8px");
-  reExposureInput.style("border", "1px solid #ddd");
-  reExposureInput.style("border-radius", "10px");
+  reExposureInput.addClass("modal-input");
 
   // buttons
   let btnRow = createDiv();
   btnRow.parent(card);
-  btnRow.style("display", "flex");
-  btnRow.style("gap", "10px");
-  btnRow.style("justify-content", "flex-end");
-  btnRow.style("margin-top", "14px");
+  btnRow.addClass("modal-actions");
 
   closeModalButton = createButton("Close");
   closeModalButton.parent(btnRow);
-  closeModalButton.style("font-size", "13px");
-  closeModalButton.style("padding", "6px 12px");
-  closeModalButton.style("border", "1px solid #ddd");
-  closeModalButton.style("border-radius", "10px");
-  closeModalButton.style("background", "white");
-  closeModalButton.style("cursor", "pointer");
+  closeModalButton.addClass("ui-button");
+  closeModalButton.addClass("ui-button--ghost");
   closeModalButton.mousePressed(() => showScenarioModal(false));
 
   applyModalButton = createButton("Apply");
