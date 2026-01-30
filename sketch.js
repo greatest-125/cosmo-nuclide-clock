@@ -535,7 +535,7 @@ function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeDisp, cumula
   text(ageText, x, y + 170);
 }
 
-// --- CARTOON MODULE (Updated Shape - FLUSH) ---
+// --- CARTOON MODULE (Updated) ---
 function drawLandscape(x, y, w, h, status) {
   push();
   translate(x, y);
@@ -556,25 +556,27 @@ function drawLandscape(x, y, w, h, status) {
   let contentX = margin;
   let contentY = margin;
   
-  fill(30);
-  textSize(16);
-  textAlign(CENTER, TOP);
-  text("Visual Scenario", w/2, 15);
-  
   let sceneY = 50;
   let sceneH = h - 70;
   let groundY = sceneY + sceneH * 0.7; 
   
-  // Sky
-  fill(200, 230, 255);
+  // Sky - WHITE
+  fill(255);
   rect(contentX, sceneY, contentW, groundY - sceneY);
   
+  // Open Sky Label (Top Left, Dark Gray)
+  fill(80); // Dark gray for visibility on white
+  textSize(14);
+  textAlign(LEFT, TOP);
+  text("Open Sky", contentX + 8, sceneY + 8);
+
   // Bedrock - RED (Exposure color)
   fill(COLOR_EXPO); 
   rect(contentX, groundY, contentW, (sceneY + sceneH) - groundY);
   
   // Label: Bedrock
   fill(255, 255, 255, 190);
+  textAlign(CENTER, TOP);
   textSize(14);
   text("Bedrock", w/2, groundY + 30);
   
@@ -587,26 +589,21 @@ function drawLandscape(x, y, w, h, status) {
     
     // Parabolic/Log Slope Shape (Gentle rise)
     let iceTopY = sceneY + 15; // Summit height
-    // Start height (Left) - significantly above ground to reduce steepness
+    // Start height (Left)
     let iceLeftY = groundY - (groundY - sceneY) * 0.6;
     
     beginShape();
-    // 1. Bottom Left (Flush)
-    vertex(contentX, groundY);
+    vertex(contentX, groundY); // Bottom Left (Flush)
+    vertex(contentX, iceLeftY); // Top Left (High start)
     
-    // 2. Top Left (High start)
-    vertex(contentX, iceLeftY);
-    
-    // 3. The Curve: Gentle rise to summit
+    // The Curve
     bezierVertex(
       contentX + contentW * 0.25, iceTopY,   // CP1
       contentX + contentW * 0.6, iceTopY,    // CP2
       contentX + contentW, iceTopY + 2       // Top Right (Flush)
     );
     
-    // 4. Bottom Right (Flush)
-    vertex(contentX + contentW, groundY);
-    
+    vertex(contentX + contentW, groundY); // Bottom Right (Flush)
     endShape(CLOSE);
     
     noStroke();
@@ -633,6 +630,7 @@ function drawLandscape(x, y, w, h, status) {
     
     noStroke();
     fill(200, 100, 0);
+    textAlign(CENTER, TOP);
     text("Cosmic Rays", w/2, sceneY + 30);
   }
   
