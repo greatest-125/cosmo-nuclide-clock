@@ -392,7 +392,7 @@ function drawFrame() {
     clockAge36 = 0;
   } else if (status === "BURIAL") {
     clockAge26 = t_app_26;
-    clockAge36 = t_app_26;
+    clockAge36 = t_app_36;
   } else if (status === "EXPOSURE" && row.Rbase_26_10 !== null) {
     clockAge26 = t_app_26;
     clockAge36 = t_app_36;
