@@ -380,6 +380,8 @@ function drawFrame() {
 
   let t_app_26 = Math.log(Rref_26 / R_26_10) / (L_26 - L_10);
   let t_app_36 = Math.log(Rref_36 / R_36_10) / (L_36 - L_10);
+  let t_exp_26 = computeExposureAge(row.N26, P_26, L_26);
+  let t_exp_36 = computeExposureAge(row.N36, P_36, L_36);
 
   if (!isFinite(t_app_26)) t_app_26 = 0;
   if (!isFinite(t_app_36)) t_app_36 = 0;
@@ -427,6 +429,7 @@ function drawFrame() {
     "26Al / 10Be Clock",
     R_26_10,
     Rp_26_10,
+    t_exp_26 / AGE_UNIT,
     clockAge26 / AGE_UNIT,
     cumulativeTime
   );
@@ -437,6 +440,7 @@ function drawFrame() {
     "36Cl / 10Be Clock",
     R_36_10,
     Rp_36_10,
+    t_exp_36 / AGE_UNIT,
     clockAge36 / AGE_UNIT,
     cumulativeTime
   );
@@ -447,7 +451,13 @@ function drawFrame() {
   drawScenarioBar();
 }
 
-function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeDisp, cumulativeTime) {
+function computeExposureAge(N, productionRate, decayConstant) {
+  const saturationFraction = 1 - (N * decayConstant) / productionRate;
+  if (saturationFraction <= 0) return Infinity;
+  return -Math.log(saturationFraction) / decayConstant;
+}
+
+function drawClock(x, y, title, currentRatio, prodRatio, exposureAgeDisp, burialAgeDisp, cumulativeTime) {
   let clockMinRatio = 0;
   let clockMaxRatio = prodRatio;
 
@@ -523,16 +533,27 @@ function drawClock(x, y, title, currentRatio, prodRatio, apparentAgeDisp, cumula
   textSize(16);
   text(title, x, y - 140);
 
-  textSize(18);
-  fill(0, 0, 150);
-  text("Apparent Burial Age " + AGE_UNIT_LABEL, x, y + 140);
-  textSize(26);
+  textSize(16);
+  fill(180, 20, 20);
+  text("Exposure Age " + AGE_UNIT_LABEL, x, y + 125);
+  textSize(20);
   fill(10);
-  let ageText = "—";
-  if (typeof apparentAgeDisp === "number" && isFinite(apparentAgeDisp)) {
-    ageText = apparentAgeDisp.toFixed(2);
+  let exposureAgeText = "—";
+  if (typeof exposureAgeDisp === "number" && isFinite(exposureAgeDisp)) {
+    exposureAgeText = exposureAgeDisp.toFixed(2);
   }
-  text(ageText, x, y + 170);
+  text(exposureAgeText, x, y + 148);
+
+  textSize(16);
+  fill(0, 0, 150);
+  text("Burial Age " + AGE_UNIT_LABEL, x, y + 178);
+  textSize(20);
+  fill(10);
+  let burialAgeText = "—";
+  if (typeof burialAgeDisp === "number" && isFinite(burialAgeDisp)) {
+    burialAgeText = burialAgeDisp.toFixed(2);
+  }
+  text(burialAgeText, x, y + 201);
 }
 
 // --- CARTOON MODULE (Updated) ---
