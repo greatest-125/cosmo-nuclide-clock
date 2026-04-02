@@ -16,21 +16,19 @@ let scenarioModal, exposureInput, burialInput, reExposureInput, closeModalButton
 
 // decay constants (λ = ln(2) / t1/2)
 const L_10 = Math.log(2) / 1.4e6;
-const L_26 = Math.log(2) / 0.717e6;
 const L_36 = Math.log(2) / 0.301e6;
-
-// production ratios (P_x / P_10)
-const Rp_26_10 = 7.0;
-const Rp_36_10 = 3.0;
 
 // production rates (atoms / g / yr)
 const P_10 = 4.0;
-const P_26 = Rp_26_10 * P_10; 
-const P_36 = Rp_36_10 * P_10; 
+const P_36 = 12.0;
+const P_3 = 100.0;
 
-// saturation inventories
+// production ratios (P_x / P_10)
+const Rp_3_10 = P_3 / P_10;
+const Rp_3_36 = P_3 / P_36;
+
+// saturation inventories (stable 3He has no decay saturation)
 const N10_SAT = P_10 / L_10;
-const N26_SAT = P_26 / L_26;
 const N36_SAT = P_36 / L_36;
 
 // time step 
@@ -38,18 +36,17 @@ const DT_YEARS = 5000;
 
 // precompute step factors to avoid per-iteration exp calls
 const DECAY_10 = Math.exp(-L_10 * DT_YEARS);
-const DECAY_26 = Math.exp(-L_26 * DT_YEARS);
 const DECAY_36 = Math.exp(-L_36 * DT_YEARS);
 const EXPOSURE_STEP_10 = (P_10 / L_10) * (1 - DECAY_10);
-const EXPOSURE_STEP_26 = (P_26 / L_26) * (1 - DECAY_26);
 const EXPOSURE_STEP_36 = (P_36 / L_36) * (1 - DECAY_36);
+const EXPOSURE_STEP_3 = P_3 * DT_YEARS;
 
 // --- FIXED INITIAL CONDITION ---
 const INITIAL_STATE = {
   t_cumulative_years: 5000,   
   N10: 19975.27,
-  N26: 139662.19,
-  N36: 59655.90
+  N36: 59655.90,
+  N3: 500000.0
 };
 
 // display units
@@ -81,19 +78,19 @@ function stepBurial(N0, decayFactor) {
   return N0 * decayFactor;
 }
 
-function buildRow(t, status, N10, N26, N36, Rburial26, Rburial36) {
-  const R_26_10 = N26 / N10;
-  const R_36_10 = N36 / N10;
+function buildRow(t, status, N10, N36, N3, Rburial3_10, Rburial3_36) {
+  const R_3_10 = N3 / N10;
+  const R_3_36 = N3 / N36;
   return {
     t_cumulative: t,
     status,
     N10,
-    N26,
     N36,
-    R_26_10,
-    R_36_10,
-    Rbase_26_10: Rburial26,
-    Rbase_36_10: Rburial36
+    N3,
+    R_3_10,
+    R_3_36,
+    Rbase_3_10: Rburial3_10,
+    Rbase_3_36: Rburial3_36
   };
 }
 
@@ -103,17 +100,17 @@ function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
   const reExposureYears = Math.max(0, reExposureMyr) * 1e6;
 
   let N10 = INITIAL_STATE.N10;
-  let N26 = INITIAL_STATE.N26;
   let N36 = INITIAL_STATE.N36;
+  let N3 = INITIAL_STATE.N3;
   let t   = INITIAL_STATE.t_cumulative_years;
   let burialStarted = false;
-  let Rburial_26 = null;
-  let Rburial_36 = null;
+  let Rburial_3_10 = null;
+  let Rburial_3_36 = null;
 
   const rows = [];
   
   // Initial frame
-  rows.push(buildRow(t, "EXPOSURE", N10, N26, N36, null, null));
+  rows.push(buildRow(t, "EXPOSURE", N10, N36, N3, null, null));
 
   const phases = [
     { status: "EXPOSURE", years: exposureYears, exposed: true },
@@ -128,17 +125,16 @@ function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
     for (let i = 0; i < steps; i++) {
       if (phase.exposed) {
         N10 = stepExposure(N10, DECAY_10, EXPOSURE_STEP_10);
-        N26 = stepExposure(N26, DECAY_26, EXPOSURE_STEP_26);
         N36 = stepExposure(N36, DECAY_36, EXPOSURE_STEP_36);
+        N3 += EXPOSURE_STEP_3;
       } else {
         N10 = stepBurial(N10, DECAY_10);
-        N26 = stepBurial(N26, DECAY_26);
         N36 = stepBurial(N36, DECAY_36);
       }
       if (phase.status === "BURIAL" && !burialStarted) {
         burialStarted = true;
-        Rburial_26 = N26 / N10;
-        Rburial_36 = N36 / N10;
+        Rburial_3_10 = N3 / N10;
+        Rburial_3_36 = N3 / N36;
       }
 
       t += DT_YEARS;
@@ -148,10 +144,10 @@ function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
           t,
           phase.status,
           N10,
-          N26,
           N36,
-          burialStarted ? Rburial_26 : null,
-          burialStarted ? Rburial_36 : null
+          N3,
+          burialStarted ? Rburial_3_10 : null,
+          burialStarted ? Rburial_3_36 : null
         )
       );
     }
@@ -370,34 +366,34 @@ function drawFrame() {
   if (!scenarioData || scenarioData.length === 0) return;
 
   let row = scenarioData[currentFrame];
-  let R_26_10 = row.R_26_10;
-  let R_36_10 = row.R_36_10;
+  let R_3_10 = row.R_3_10;
+  let R_3_36 = row.R_3_36;
   let cumulativeTime = row.t_cumulative;
   let status = row.status;
 
-  const Rref_26 = isFinite(row.Rbase_26_10) ? row.Rbase_26_10 : Rp_26_10;
-  const Rref_36 = isFinite(row.Rbase_36_10) ? row.Rbase_36_10 : Rp_36_10;
+  const Rref_3_10 = isFinite(row.Rbase_3_10) ? row.Rbase_3_10 : Rp_3_10;
+  const Rref_3_36 = isFinite(row.Rbase_3_36) ? row.Rbase_3_36 : Rp_3_36;
 
-  let t_app_26 = Math.log(Rref_26 / R_26_10) / (L_26 - L_10);
-  let t_app_36 = Math.log(Rref_36 / R_36_10) / (L_36 - L_10);
-  let t_exp_26 = computeExposureAge(row.N26, P_26, L_26);
+  let t_app_3_10 = Math.log(Rref_3_10 / R_3_10) / (-L_10);
+  let t_app_3_36 = Math.log(Rref_3_36 / R_3_36) / (-L_36);
+  let t_exp_10 = computeExposureAge(row.N10, P_10, L_10);
   let t_exp_36 = computeExposureAge(row.N36, P_36, L_36);
 
-  if (!isFinite(t_app_26)) t_app_26 = 0;
-  if (!isFinite(t_app_36)) t_app_36 = 0;
+  if (!isFinite(t_app_3_10)) t_app_3_10 = 0;
+  if (!isFinite(t_app_3_36)) t_app_3_36 = 0;
 
-  let clockAge26 = 0;
-  let clockAge36 = 0;
+  let clockAge3_10 = 0;
+  let clockAge3_36 = 0;
   
-  if (status === "EXPOSURE" && row.Rbase_26_10 === null) {
-    clockAge26 = 0;
-    clockAge36 = 0;
+  if (status === "EXPOSURE" && row.Rbase_3_10 === null) {
+    clockAge3_10 = 0;
+    clockAge3_36 = 0;
   } else if (status === "BURIAL") {
-    clockAge26 = t_app_26;
-    clockAge36 = t_app_36;
-  } else if (status === "EXPOSURE" && row.Rbase_26_10 !== null) {
-    clockAge26 = t_app_26;
-    clockAge36 = t_app_36;
+    clockAge3_10 = t_app_3_10;
+    clockAge3_36 = t_app_3_36;
+  } else if (status === "EXPOSURE" && row.Rbase_3_10 !== null) {
+    clockAge3_10 = t_app_3_10;
+    clockAge3_36 = t_app_3_36;
   }
   
   // header
@@ -426,22 +422,22 @@ function drawFrame() {
   drawClock(
     clock1_X,
     420,
-    "26Al / 10Be Clock",
-    R_26_10,
-    Rp_26_10,
-    t_exp_26 / AGE_UNIT,
-    clockAge26 / AGE_UNIT,
+    "3He / 10Be Clock",
+    R_3_10,
+    Rp_3_10,
+    t_exp_10 / AGE_UNIT,
+    clockAge3_10 / AGE_UNIT,
     cumulativeTime
   );
 
   drawClock(
     clock2_X,
     420,
-    "36Cl / 10Be Clock",
-    R_36_10,
-    Rp_36_10,
+    "3He / 36Cl Clock",
+    R_3_36,
+    Rp_3_36,
     t_exp_36 / AGE_UNIT,
-    clockAge36 / AGE_UNIT,
+    clockAge3_36 / AGE_UNIT,
     cumulativeTime
   );
 
@@ -735,7 +731,7 @@ function drawInventoryBars(row) {
 
   const bars = [
     { label: "10Be", N: row.N10, Nmax: N10_SAT },
-    { label: "26Al", N: row.N26, Nmax: N26_SAT },
+    { label: "3He", N: row.N3, Nmax: Math.max(row.N3, INITIAL_STATE.N3 * 1.1) },
     { label: "36Cl", N: row.N36, Nmax: N36_SAT }
   ];
 
