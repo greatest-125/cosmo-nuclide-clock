@@ -39,14 +39,14 @@ To illustrate the differences between the isotopic systems, the model uses the f
 | Nuclide | Half-Life (t₁/₂) | Production Rate (P) |
 |--------|-------------------|----------------------|
 | ¹⁰Be   | 1.4 Myr           | 4 atoms/g/yr         |
-| ³He    | stable            | 100 atoms/g/yr       |
+| ²⁶Al   | 0.717 Myr         | 28 atoms/g/yr        |
 | ³⁶Cl   | 0.301 Myr         | 12 atoms/g/yr        |
 
 **Production Ratios:**
 
--   $^{3}\text{He} / ^{10}\text{Be}$: **25.0**
+-   $^{26}\text{Al} / ^{10}\text{Be}$: **7.0**
 
--   $^{3}\text{He} / ^{36}\text{Cl}$: **8.33**
+-   $^{36}\text{Cl} / ^{10}\text{Be}$: **3.0**
 
 ### Equations Used
 
@@ -67,12 +67,10 @@ When the rock is buried, production stops ($P=0$) and the equation becomes:
 
 $$N(t) = N_0 e^{-\lambda t}$$
 
-For stable $^3$He, accumulation during exposure is linear: $N(t)=N_0 + P_{3He}\,t$; during burial, concentration is unchanged in this simplified model.
-
 #### 4\. The "Burial Age" Clock
 
 The animation calculates the "Apparent Burial Age" by comparing the measured ratio of two nuclides ($R_{measured}$) to the initial surface production ratio ($R_{initial}$). The age $t$ is derived as: 
-$$t = \frac{\ln(R_{measured} / R_{initial})}{\lambda_{10} - \lambda_{x}}$$ where x is 10Be or 36Cl when paired with stable 3He.
+$$t = \frac{\ln(R_{measured} / R_{initial})}{\lambda_{10} - \lambda_{x}}$$ where x is either 26Al or 36Cl.
 
 ### Assumptions & Simplifications
 
