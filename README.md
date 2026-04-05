@@ -144,14 +144,12 @@ During any re-exposure interval, the animation continues to show these as **appa
 
 ### Initial Condition Used in the Sketch
 
-The sketch starts from modeled surface inventories at **5 kyr** rather than from zero concentration. In this updated version, that means:
+The sketch starts from modeled surface inventories at **5 kyr** rather than from zero concentration. This means:
 
 - 10Be and 36Cl begin from their 5 kyr modeled inventories under exposure.
 - 3He begins from $P_{3\mathrm{He}} \times 5000 = 500{,}000$ atoms/g.
 
 ### Assumptions & Simplifications
-
-A number of simplifications were made when creating this animation (following the spirit of the earlier simplified version based on Balco et al., 2008):
 
 The following factors are not taken into consideration:
 
@@ -163,5 +161,3 @@ The following factors are not taken into consideration:
 - Sample thickness
 - An effective attenuation length for production by muons
 - Any loss or diffusion of 3He; it is treated here as perfectly stable and retained
-
-The goal of the animation remains illustrative rather than site-specific: it is designed to show how a stable nuclide (3He) paired with shorter-lived radioactive nuclides (10Be and 36Cl) behaves across exposure, burial, and re-exposure.
