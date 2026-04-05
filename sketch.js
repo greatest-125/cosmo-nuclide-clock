@@ -1,8 +1,8 @@
-// Cosmo Clock
-// Last Update: April 2026
+// Cosmo Clock 
+// Last Update: April 2026 
 // MIT License
 
-let scenarioData = [];
+let scenarioData = []; 
 let currentFrame = 0;
 let isPlaying = false;
 let playButton, restartButton, speedSlider, speedLabel;
@@ -20,65 +20,61 @@ const L_36 = Math.log(2) / 0.301e6;
 
 // production rates (atoms / g / yr)
 const P_10 = 4.0;
-const P_36 = 12.0;
 const P_3 = 100.0;
+const P_36 = 12.0;
 
-// raw production-rate ratios (for reference only)
+// production ratios (P_x / P_10), retained as raw reference values
 const Rp_3_10 = P_3 / P_10;
 const Rp_3_36 = P_3 / P_36;
 
-// saturation inventories for radioactive nuclides
+// saturation inventories
 const N10_SAT = P_10 / L_10;
 const N36_SAT = P_36 / L_36;
 
-// time step
+// time step 
 const DT_YEARS = 5000;
 
 // precompute step factors to avoid per-iteration exp calls
 const DECAY_10 = Math.exp(-L_10 * DT_YEARS);
 const DECAY_36 = Math.exp(-L_36 * DT_YEARS);
 const EXPOSURE_STEP_10 = (P_10 / L_10) * (1 - DECAY_10);
-const EXPOSURE_STEP_36 = (P_36 / L_36) * (1 - DECAY_36);
 const EXPOSURE_STEP_3 = P_3 * DT_YEARS;
+const EXPOSURE_STEP_36 = (P_36 / L_36) * (1 - DECAY_36);
 
-// fixed initial condition at 5 kyr of exposure
+// --- FIXED INITIAL CONDITION ---
 const INITIAL_STATE = {
-  t_cumulative_years: 5000,
+  t_cumulative_years: 5000,   
   N10: 19975.27,
-  N3: P_3 * 5000,
-  N36: 59655.9
+  N3: 500000.00,
+  N36: 59655.90
 };
 
 // display units
 const AGE_UNIT = 1e3;
 const AGE_UNIT_LABEL = "[kyr]";
 
-const BOTTOM_PANEL_SHIFT_PX = 40;
+const BOTTOM_PANEL_SHIFT_PX = 40; 
 
 // scenario bar
 let barX, barY, barW, barH;
 
-// colors matching the bar
-const COLOR_EXPO = [230, 38, 38];
-const COLOR_BURIAL = [0, 92, 255];
+// Colors matching the bar
+const COLOR_EXPO = [230, 38, 38];   // Red
+const COLOR_BURIAL = [0, 92, 255];  // Blue
 
-// settings (Default: 0.5 -> 1.0 -> 0.5)
+// Settings (Default: 0.5 -> 1.0 -> 0.5)
 let scenarioSettings = {
-  exposureMyr: 0.5,
+  exposureMyr: 0.5,     
   burialMyr: 1.0,
   reExposureMyr: 0.5
 };
 
-function clamp01(value) {
-  return Math.min(1, Math.max(0, value));
-}
-
-// helper math functions
-function stepExposureRadioactive(N0, decayFactor, productionStep) {
+// Helper Math Functions
+function stepExposure(N0, decayFactor, productionStep) {
   return productionStep + N0 * decayFactor;
 }
 
-function stepBurialRadioactive(N0, decayFactor) {
+function stepBurial(N0, decayFactor) {
   return N0 * decayFactor;
 }
 
@@ -90,12 +86,15 @@ function stepBurialStable(N0) {
   return N0;
 }
 
+function clamp01(v) {
+  return Math.max(0, Math.min(1, v));
+}
+
 function buildRow(t, status, N10, N3, N36, Rburial3_10, Rburial3_36) {
   const R_3_10 = N3 / N10;
   const R_3_36 = N3 / N36;
-  const Rnorm_3_10 = Rburial3_10 && Rburial3_10 > 0 ? clamp01(Rburial3_10 / R_3_10) : 1;
-  const Rnorm_3_36 = Rburial3_36 && Rburial3_36 > 0 ? clamp01(Rburial3_36 / R_3_36) : 1;
-
+  const Rnorm_3_10 = Rburial3_10 ? clamp01(Rburial3_10 / R_3_10) : 1;
+  const Rnorm_3_36 = Rburial3_36 ? clamp01(Rburial3_36 / R_3_36) : 1;
   return {
     t_cumulative: t,
     status,
@@ -113,54 +112,46 @@ function buildRow(t, status, N10, N3, N36, Rburial3_10, Rburial3_36) {
 
 function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
   const exposureYears = Math.max(0, exposureMyr) * 1e6;
-  const burialYears = Math.max(0, burialMyr) * 1e6;
+  const burialYears   = Math.max(0, burialMyr) * 1e6;
   const reExposureYears = Math.max(0, reExposureMyr) * 1e6;
 
   let N10 = INITIAL_STATE.N10;
   let N3 = INITIAL_STATE.N3;
   let N36 = INITIAL_STATE.N36;
-  let t = INITIAL_STATE.t_cumulative_years;
+  let t   = INITIAL_STATE.t_cumulative_years;
   let burialStarted = false;
   let Rburial_3_10 = null;
   let Rburial_3_36 = null;
 
   const rows = [];
-
-  // initial frame
+  
+  // Initial frame
   rows.push(buildRow(t, "EXPOSURE", N10, N3, N36, null, null));
 
   const phases = [
     { status: "EXPOSURE", years: exposureYears, exposed: true },
-    { status: "BURIAL", years: burialYears, exposed: false },
+    { status: "BURIAL",   years: burialYears,   exposed: false },
     { status: "EXPOSURE", years: reExposureYears, exposed: true }
   ];
 
   for (const phase of phases) {
     if (phase.years <= 0) continue;
-
-    if (phase.status === "BURIAL" && !burialStarted) {
-      burialStarted = true;
-      Rburial_3_10 = N3 / N10;
-      Rburial_3_36 = N3 / N36;
-
-      // boundary frame so the normalized dial starts at 1.0 at burial onset
-      rows.push(buildRow(t, "BURIAL", N10, N3, N36, Rburial_3_10, Rburial_3_36));
-    } else if (phase.status === "EXPOSURE" && burialStarted) {
-      // boundary frame for the return to exposure after burial
-      rows.push(buildRow(t, "EXPOSURE", N10, N3, N36, Rburial_3_10, Rburial_3_36));
-    }
-
     const steps = Math.max(1, Math.round(phase.years / DT_YEARS));
 
     for (let i = 0; i < steps; i++) {
       if (phase.exposed) {
-        N10 = stepExposureRadioactive(N10, DECAY_10, EXPOSURE_STEP_10);
+        N10 = stepExposure(N10, DECAY_10, EXPOSURE_STEP_10);
         N3 = stepExposureStable(N3, EXPOSURE_STEP_3);
-        N36 = stepExposureRadioactive(N36, DECAY_36, EXPOSURE_STEP_36);
+        N36 = stepExposure(N36, DECAY_36, EXPOSURE_STEP_36);
       } else {
-        N10 = stepBurialRadioactive(N10, DECAY_10);
+        N10 = stepBurial(N10, DECAY_10);
         N3 = stepBurialStable(N3);
-        N36 = stepBurialRadioactive(N36, DECAY_36);
+        N36 = stepBurial(N36, DECAY_36);
+      }
+      if (phase.status === "BURIAL" && !burialStarted) {
+        burialStarted = true;
+        Rburial_3_10 = N3 / N10;
+        Rburial_3_36 = N3 / N36;
       }
 
       t += DT_YEARS;
@@ -178,7 +169,6 @@ function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
       );
     }
   }
-
   return rows;
 }
 
@@ -193,7 +183,7 @@ function applyScenario(exposureMyr, burialMyr, reExposureMyr) {
   isPlaying = false;
   frameCounter = 0;
   noLoop();
-  updateScenarioSummary();
+  updateScenarioSummary(); 
   drawFrame();
 }
 
@@ -220,7 +210,7 @@ function setup() {
   styleButton(restartButton, "#0277bd");
   restartButton.parent(controlBar);
   restartButton.mousePressed(restartAnimation);
-
+  
   // scenario button + summary
   scenarioButton = createButton("Scenario Settings");
   styleButton(scenarioButton, "#6a1b9a");
@@ -248,11 +238,11 @@ function setup() {
   barH = 26;
   barX = (width - barW) / 2;
   barY = height - 90;
-
-  // build the modal for customization
+  
+  // Build the modal for customization
   buildScenarioModal();
 
-  // initial scenario
+  // Initial Scenario
   applyScenario(scenarioSettings.exposureMyr, scenarioSettings.burialMyr, scenarioSettings.reExposureMyr);
 
   noLoop();
@@ -292,34 +282,30 @@ function buildScenarioModal() {
   title.parent(card);
   title.addClass("modal-title");
 
+  // form rows
   const rowStyle = (r) => {
     r.addClass("modal-row");
   };
 
-  let r1 = createDiv();
-  r1.parent(card);
-  rowStyle(r1);
+  let r1 = createDiv(); r1.parent(card); rowStyle(r1);
   createDiv("Initial exposure duration (Ma)").parent(r1).style("font-size", "13px");
   exposureInput = createInput(String(scenarioSettings.exposureMyr));
   exposureInput.parent(r1);
   exposureInput.addClass("modal-input");
 
-  let r2 = createDiv();
-  r2.parent(card);
-  rowStyle(r2);
+  let r2 = createDiv(); r2.parent(card); rowStyle(r2);
   createDiv("Burial duration (Ma)").parent(r2).style("font-size", "13px");
   burialInput = createInput(String(scenarioSettings.burialMyr));
   burialInput.parent(r2);
   burialInput.addClass("modal-input");
 
-  let r3 = createDiv();
-  r3.parent(card);
-  rowStyle(r3);
+  let r3 = createDiv(); r3.parent(card); rowStyle(r3);
   createDiv("Re-exposure duration (Ma)").parent(r3).style("font-size", "13px");
   reExposureInput = createInput(String(scenarioSettings.reExposureMyr));
   reExposureInput.parent(r3);
   reExposureInput.addClass("modal-input");
 
+  // buttons
   let btnRow = createDiv();
   btnRow.parent(card);
   btnRow.addClass("modal-actions");
@@ -362,9 +348,9 @@ function showScenarioModal(show) {
 
 function updateScenarioSummary() {
   scenarioSummary.html(
-    `E ${scenarioSettings.exposureMyr.toFixed(2)} Ma · ` +
-      `B ${scenarioSettings.burialMyr.toFixed(2)} Ma · ` +
-      `E ${scenarioSettings.reExposureMyr.toFixed(2)} Ma`
+    `E ${scenarioSettings.exposureMyr.toFixed(2)} Ma  |  ` +
+    `B ${scenarioSettings.burialMyr.toFixed(2)} Ma  |  ` +
+    `E ${scenarioSettings.reExposureMyr.toFixed(2)} Ma`
   );
 }
 
@@ -397,24 +383,35 @@ function drawFrame() {
   if (!scenarioData || scenarioData.length === 0) return;
 
   let row = scenarioData[currentFrame];
+  let R_3_10 = row.R_3_10;
+  let R_3_36 = row.R_3_36;
+  let cumulativeTime = row.t_cumulative;
   let status = row.status;
 
-  let t_app_3_10 = 0;
-  let t_app_3_36 = 0;
+  const Rref_3_10 = isFinite(row.Rbase_3_10) ? row.Rbase_3_10 : Rp_3_10;
+  const Rref_3_36 = isFinite(row.Rbase_3_36) ? row.Rbase_3_36 : Rp_3_36;
 
-  if (isFinite(row.Rbase_3_10) && row.Rbase_3_10 > 0 && row.R_3_10 >= row.Rbase_3_10) {
-    t_app_3_10 = Math.log(row.R_3_10 / row.Rbase_3_10) / L_10;
-  }
-
-  if (isFinite(row.Rbase_3_36) && row.Rbase_3_36 > 0 && row.R_3_36 >= row.Rbase_3_36) {
-    t_app_3_36 = Math.log(row.R_3_36 / row.Rbase_3_36) / L_36;
-  }
+  let t_app_3_10 = Math.log(R_3_10 / Rref_3_10) / L_10;
+  let t_app_3_36 = Math.log(R_3_36 / Rref_3_36) / L_36;
+  let t_exp_3 = computeStableExposureAge(row.N3, P_3);
 
   if (!isFinite(t_app_3_10) || t_app_3_10 < 0) t_app_3_10 = 0;
   if (!isFinite(t_app_3_36) || t_app_3_36 < 0) t_app_3_36 = 0;
 
-  const t_exp_3 = computeStableExposureAge(row.N3, P_3);
+  let clockAge3_10 = 0;
+  let clockAge3_36 = 0;
 
+  if (status === "EXPOSURE" && row.Rbase_3_10 === null) {
+    clockAge3_10 = 0;
+    clockAge3_36 = 0;
+  } else if (status === "BURIAL") {
+    clockAge3_10 = t_app_3_10;
+    clockAge3_36 = t_app_3_36;
+  } else if (status === "EXPOSURE" && row.Rbase_3_10 !== null) {
+    clockAge3_10 = t_app_3_10;
+    clockAge3_36 = t_app_3_36;
+  }
+  
   // header
   textSize(34);
   fill(60);
@@ -431,21 +428,22 @@ function drawFrame() {
   // note
   textSize(12);
   fill(90);
-  text("Clocks use normalized ratios (1 at burial onset -> 0 with continued burial).", width / 2, 206);
+  text("Stable 3He is modeled as N = P x t; clock dials show normalized ratios from 1 to 0.", width / 2, 206);
 
+  // --- FIXED LAYOUT (Side-by-Side) ---
   const clock1_X = 300;
   const clock2_X = 650;
   const cartoon_X = 900;
-
+  
   drawClock(
     clock1_X,
     420,
     "3He / 10Be Clock",
     row.Rnorm_3_10,
-    row.R_3_10,
-    row.Rbase_3_10,
+    1.0,
     t_exp_3 / AGE_UNIT,
-    t_app_3_10 / AGE_UNIT
+    clockAge3_10 / AGE_UNIT,
+    cumulativeTime
   );
 
   drawClock(
@@ -453,10 +451,10 @@ function drawFrame() {
     420,
     "3He / 36Cl Clock",
     row.Rnorm_3_36,
-    row.R_3_36,
-    row.Rbase_3_36,
+    1.0,
     t_exp_3 / AGE_UNIT,
-    t_app_3_36 / AGE_UNIT
+    clockAge3_36 / AGE_UNIT,
+    cumulativeTime
   );
 
   drawLandscape(cartoon_X, 240, 300, 360, status);
@@ -465,21 +463,22 @@ function drawFrame() {
   drawScenarioBar();
 }
 
+function computeExposureAge(N, productionRate, decayConstant) {
+  const saturationFraction = 1 - (N * decayConstant) / productionRate;
+  if (saturationFraction <= 0) return Infinity;
+  return -Math.log(saturationFraction) / decayConstant;
+}
+
 function computeStableExposureAge(N, productionRate) {
   return N / productionRate;
 }
 
-function formatRatioTick(value) {
-  if (Math.abs(value - Math.round(value)) < 1e-6) return String(Math.round(value));
-  return value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
-}
-
-function drawClock(x, y, title, normalizedRatio, rawRatio, rawReferenceRatio, exposureAgeDisp, burialAgeDisp) {
+function drawClock(x, y, title, currentRatio, prodRatio, exposureAgeDisp, burialAgeDisp, cumulativeTime) {
   let clockMinRatio = 0;
-  let clockMaxRatio = 1;
+  let clockMaxRatio = prodRatio;
 
-  if (isNaN(normalizedRatio) || !isFinite(normalizedRatio)) normalizedRatio = 1;
-  normalizedRatio = constrain(normalizedRatio, clockMinRatio, clockMaxRatio);
+  if (isNaN(currentRatio) || !isFinite(currentRatio)) currentRatio = 0;
+  currentRatio = constrain(currentRatio, clockMinRatio, clockMaxRatio);
 
   noStroke();
   fill(255);
@@ -499,10 +498,9 @@ function drawClock(x, y, title, normalizedRatio, rawRatio, rawReferenceRatio, ex
   stroke(180);
   circle(x, y, 220);
 
-  for (let ratioTick = 0; ratioTick <= clockMaxRatio + 1e-6; ratioTick += 0.05) {
-    const roundedTick = Math.round(ratioTick * 100) / 100;
-    let isMajor = Math.abs((roundedTick * 100) % 25) < 1e-6;
-    let tickAngle = map(roundedTick, 0, clockMaxRatio, 90, -90);
+  for (let ratioTick = 0; ratioTick <= clockMaxRatio; ratioTick += 0.25) {
+    let isMajor = Math.abs(ratioTick % 1.0) < 1e-6;
+    let tickAngle = map(ratioTick, 0, clockMaxRatio, 90, -90);
     let rad = radians(tickAngle);
     let outR = 110;
     let inR = isMajor ? 88 : 98;
@@ -520,12 +518,12 @@ function drawClock(x, y, title, normalizedRatio, rawRatio, rawReferenceRatio, ex
       noStroke();
       fill(10);
       textSize(12);
-      text(formatRatioTick(roundedTick), x_num, y_num);
+      text(nf(ratioTick, 0, 0), x_num, y_num);
     }
   }
 
   // hand
-  let handAngle = map(normalizedRatio, 0, clockMaxRatio, 90, -90);
+  let handAngle = map(currentRatio, 0, clockMaxRatio, 90, -90);
   let handRad = radians(handAngle);
   stroke(200, 30, 30);
   strokeWeight(5);
@@ -538,12 +536,11 @@ function drawClock(x, y, title, normalizedRatio, rawRatio, rawReferenceRatio, ex
 
   push();
   fill(40);
-  textSize(11);
+  textSize(12);
   textAlign(LEFT, CENTER);
-  const ratioLabelX = x - 98;
-  text(`Dial: ${normalizedRatio.toFixed(3)}`, ratioLabelX, y - 28);
-  text(`Raw: ${rawRatio.toFixed(3)}`, ratioLabelX, y - 10);
-  text(`Ref: ${isFinite(rawReferenceRatio) ? rawReferenceRatio.toFixed(3) : "-"}`, ratioLabelX, y + 8);
+  let ratioLabelX = x - 90;
+  let ratioLabelY = y - 20;
+  text(`Ratio: ${currentRatio.toFixed(3)}`, ratioLabelX, ratioLabelY);
   textAlign(CENTER, CENTER);
   pop();
 
@@ -551,10 +548,6 @@ function drawClock(x, y, title, normalizedRatio, rawRatio, rawReferenceRatio, ex
   fill(20);
   textSize(16);
   text(title, x, y - 140);
-
-  textSize(12);
-  fill(90);
-  text("normalized ratio on dial", x, y - 118);
 
   textSize(16);
   fill(180, 20, 20);
@@ -579,10 +572,12 @@ function drawClock(x, y, title, normalizedRatio, rawRatio, rawReferenceRatio, ex
   text(burialAgeText, x, y + 201);
 }
 
+// --- CARTOON MODULE (Updated) ---
 function drawLandscape(x, y, w, h, status) {
   push();
   translate(x, y);
-
+  
+  // Background card
   noStroke();
   fill(255);
   drawingContext.shadowBlur = 14;
@@ -590,75 +585,96 @@ function drawLandscape(x, y, w, h, status) {
   rectMode(CORNER);
   rect(0, 0, w, h, 18);
   drawingContext.shadowBlur = 0;
-
+  
+  // Clip area 
   let margin = 15;
-  let contentW = w - margin * 2;
+  let contentW = w - margin*2;
+  let contentH = h - margin*2;
   let contentX = margin;
-
+  let contentY = margin;
+  
   let sceneY = 50;
   let sceneH = h - 70;
-  let groundY = sceneY + sceneH * 0.7;
-
+  let groundY = sceneY + sceneH * 0.7; 
+  
+  // Sky - WHITE
   fill(255);
   rect(contentX, sceneY, contentW, groundY - sceneY);
-
-  fill(80);
+  
+  // Open Sky Label (Top Left, Dark Gray)
+  fill(80); // Dark gray for visibility on white
   textSize(14);
   textAlign(LEFT, TOP);
   text("Open Sky", contentX + 8, sceneY + 8);
 
-  fill(COLOR_EXPO);
-  rect(contentX, groundY, contentW, sceneY + sceneH - groundY);
-
+  // Bedrock - RED (Exposure color)
+  fill(COLOR_EXPO); 
+  rect(contentX, groundY, contentW, (sceneY + sceneH) - groundY);
+  
+  // Label: Bedrock
   fill(255, 255, 255, 190);
   textAlign(CENTER, TOP);
   textSize(14);
-  text("Bedrock", w / 2, groundY + 30);
-
+  text("Bedrock", w/2, groundY + 30);
+  
   if (status === "BURIAL") {
-    fill(0, 92, 255, 230);
+    // --- BURIAL MODE ---
+    // Ice Sheet - BLUE (Burial color)
+    fill(0, 92, 255, 230); // Blue with transparency
     stroke(0, 60, 180);
     strokeWeight(2);
-
-    let iceTopY = sceneY + 15;
+    
+    // Parabolic/Log Slope Shape (Gentle rise)
+    let iceTopY = sceneY + 15; // Summit height
+    // Start height (Left)
     let iceLeftY = groundY - (groundY - sceneY) * 0.6;
-
+    
     beginShape();
-    vertex(contentX, groundY);
-    vertex(contentX, iceLeftY);
-    bezierVertex(contentX + contentW * 0.25, iceTopY, contentX + contentW * 0.6, iceTopY, contentX + contentW, iceTopY + 2);
-    vertex(contentX + contentW, groundY);
+    vertex(contentX, groundY); // Bottom Left (Flush)
+    vertex(contentX, iceLeftY); // Top Left (High start)
+    
+    // The Curve
+    bezierVertex(
+      contentX + contentW * 0.25, iceTopY,   // CP1
+      contentX + contentW * 0.6, iceTopY,    // CP2
+      contentX + contentW, iceTopY + 2       // Top Right (Flush)
+    );
+    
+    vertex(contentX + contentW, groundY); // Bottom Right (Flush)
     endShape(CLOSE);
-
+    
     noStroke();
     fill(255);
-    text("Ice Sheet", w / 2, sceneY + 60);
+    text("Ice Sheet", w/2, sceneY + 60);
+    
   } else {
-    stroke(255, 200, 0);
+    // --- EXPOSURE MODE ---
+    stroke(255, 200, 0); // Yellow/Gold
     strokeWeight(2);
-
+    
     let rayCount = 8;
-    for (let i = 0; i < rayCount; i++) {
-      let xPos = contentX + (contentW * (i + 1)) / (rayCount + 1);
-      let offset = (frameCount * 3 + i * 20) % (groundY - sceneY);
-      let yPos = sceneY + offset;
-
-      if (yPos < groundY) {
-        line(xPos, yPos, xPos, yPos - 15);
-        line(xPos, yPos, xPos - 3, yPos - 5);
-        line(xPos, yPos, xPos + 3, yPos - 5);
-      }
+    for(let i=0; i<rayCount; i++) {
+        let xPos = contentX + (contentW * (i+1)/(rayCount+1));
+        let offset = (frameCount * 3 + i * 20) % (groundY - sceneY); 
+        let yPos = sceneY + offset;
+        
+        if(yPos < groundY) {
+            line(xPos, yPos, xPos, yPos - 15);
+            line(xPos, yPos, xPos - 3, yPos - 5);
+            line(xPos, yPos, xPos + 3, yPos - 5);
+        }
     }
-
+    
     noStroke();
     fill(200, 100, 0);
     textAlign(CENTER, TOP);
-    text("Cosmic Rays", w / 2, sceneY + 30);
+    text("Cosmic Rays", w/2, sceneY + 30);
   }
-
+  
   pop();
 }
 
+// --- UPDATED BAR with Ticks ---
 function drawScenarioBar() {
   push();
   rectMode(CORNER);
@@ -680,27 +696,28 @@ function drawScenarioBar() {
     rect(barX + i * segW, barY, segW + 1, barH);
   }
 
+  // Ticks & Labels
   if (n > 1) {
-    let totalTime = scenarioData[n - 1].t_cumulative;
+    let totalTime = scenarioData[n-1].t_cumulative;
     let maxMa = totalTime / 1e6;
-    let tickIntervalMa = 0.5;
+    let tickIntervalMa = 0.5; 
     if (maxMa <= 1.0) tickIntervalMa = 0.25;
     if (maxMa > 3.0) tickIntervalMa = 1.0;
-
+    
     fill(80);
     textSize(11);
     textAlign(CENTER, TOP);
     stroke(150);
     strokeWeight(1);
-
+    
     for (let ma = 0; ma <= maxMa + 0.001; ma += tickIntervalMa) {
-      let tYears = ma * 1e6;
-      let xPos = map(tYears, 0, totalTime, barX, barX + barW);
-
-      line(xPos, barY + barH, xPos, barY + barH + 6);
-      noStroke();
-      text(ma.toFixed(1) + " Ma", xPos, barY + barH + 8);
-      stroke(150);
+        let tYears = ma * 1e6;
+        let xPos = map(tYears, 0, totalTime, barX, barX + barW);
+        
+        line(xPos, barY + barH, xPos, barY + barH + 6);
+        noStroke();
+        text(ma.toFixed(1) + " Ma", xPos, barY + barH + 8);
+        stroke(150);
     }
   }
 
@@ -717,7 +734,6 @@ function drawInventoryBars(row) {
   const panelH = 120;
   const panelX = width / 2;
   const panelY = barY - 90;
-  const N3_MAX = scenarioData.reduce((maxValue, item) => Math.max(maxValue, item.N3), 1);
 
   push();
   rectMode(CENTER);
@@ -734,29 +750,29 @@ function drawInventoryBars(row) {
 
   const bars = [
     { label: "10Be", N: row.N10, Nmax: N10_SAT },
-    { label: "3He", N: row.N3, Nmax: N3_MAX },
+    { label: "3He", N: row.N3, Nmax: Math.max(row.N3, INITIAL_STATE.N3) },
     { label: "36Cl", N: row.N36, Nmax: N36_SAT }
   ];
 
-  const barHeight = 56;
-  const barWidth = 18;
-  const baseY = panelY + 36;
+  const barH = 56;
+  const barW = 18;
+  const baseY = panelY + 36; 
   const xs = [panelX - 130, panelX, panelX + 130];
 
   for (let i = 0; i < bars.length; i++) {
     const b = bars[i];
     const frac = constrain(b.N / b.Nmax, 0, 1);
-    const fillH = frac * barHeight;
+    const fillH = frac * barH;
 
     stroke(80);
     strokeWeight(1);
     noFill();
-    rect(xs[i], baseY - barHeight / 2, barWidth, barHeight, 4);
+    rect(xs[i], baseY - barH / 2, barW, barH, 4);
 
     noStroke();
     fill(60, 60, 60, 170);
     rectMode(CORNER);
-    rect(xs[i] - barWidth / 2, baseY - fillH, barWidth, fillH, 4);
+    rect(xs[i] - barW / 2, baseY - fillH, barW, fillH, 4);
 
     rectMode(CENTER);
     fill(20);
@@ -766,14 +782,19 @@ function drawInventoryBars(row) {
     fill(90);
     textSize(10);
     const valM = b.N / 1e6;
-    text(`${valM.toFixed(2)}x10^6`, xs[i], baseY + 38);
+    text(`${valM.toFixed(2)}x106`, xs[i], baseY + 38);
   }
   pop();
 }
 
 // bar interactive
 function mousePressed() {
-  if (mouseX > barX && mouseX < barX + barW && mouseY > barY - 18 && mouseY < barY + barH + 18) {
+  if (
+    mouseX > barX &&
+    mouseX < barX + barW &&
+    mouseY > barY - 18 &&
+    mouseY < barY + barH + 18
+  ) {
     isDragging = true;
     noLoop();
     updateFrameFromMouse();
