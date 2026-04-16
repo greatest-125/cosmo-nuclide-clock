@@ -750,7 +750,7 @@ function drawInventoryBars(row) {
 
   const bars = [
     { label: "10Be", N: row.N10, Nmax: N10_SAT },
-    { label: "3He", N: row.N3, Nmax: Math.max(row.N3, INITIAL_STATE.N3) },
+    { label: "3He", N: row.N3, Nmax: scenarioData[scenarioData.length - 1].N3 },
     { label: "36Cl", N: row.N36, Nmax: N36_SAT }
   ];
 
