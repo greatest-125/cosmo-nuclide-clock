@@ -680,8 +680,15 @@ function drawFuelTank(x, y, w, h, row, exposureAgeYears) {
   const tankY = 88;
   const tankW = 116;
   const tankH = 220;
-  const frac = constrain(row.N3 / scenarioData[scenarioData.length - 1].N3, 0, 1);
+  const maxN3 = scenarioData[scenarioData.length - 1].N3;
+  const frac = constrain(row.N3 / maxN3, 0, 1);
   const fillH = tankH * frac;
+
+  // unit label for the tank scale
+  fill(COLOR_MUTED);
+  textSize(11);
+  text("3He inventory", w / 2, 76);
+  text("atoms / g rock", w / 2, 91);
 
   // tank shell
   stroke(35);
@@ -694,23 +701,32 @@ function drawFuelTank(x, y, w, h, row, exposureAgeYears) {
   fill(COLOR_EXPO[0], COLOR_EXPO[1], COLOR_EXPO[2], row.status === "BURIAL" ? 150 : 215);
   rect(tankX + 7, tankY + tankH - fillH + 7, tankW - 14, Math.max(0, fillH - 14), 0, 0, 15, 15);
 
-  // simple level marks
+  // level marks with units, shown as millions of atoms/g
+  textAlign(LEFT, CENTER);
   stroke(80, 80, 80, 120);
   strokeWeight(1);
-  for (let i = 1; i < 5; i++) {
+  for (let i = 0; i <= 5; i++) {
     const yy = tankY + tankH - (tankH * i) / 5;
     line(tankX + tankW + 8, yy, tankX + tankW + 25, yy);
+    noStroke();
+    fill(COLOR_MUTED);
+    textSize(10);
+    const labelM = (maxN3 * i / 5) / 1e6;
+    text(`${labelM.toFixed(1)}M`, tankX + tankW + 30, yy);
+    stroke(80, 80, 80, 120);
   }
+  textAlign(CENTER, CENTER);
 
   noStroke();
   fill(COLOR_TEXT);
   textSize(13);
-  text("exposure age", w / 2, h - 46);
+  text("exposure age", w / 2, h - 50);
   textSize(12);
   fill(COLOR_MUTED);
-  text(`stored as 3He inventory (${AGE_UNIT_LABEL})`, w / 2, h - 25);
+  text(`N3He / P3He  (${AGE_UNIT_LABEL})`, w / 2, h - 31);
+  text("P3He = 100 atoms / g / yr", w / 2, h - 14);
 
-  // intentionally no numeric exposure-age readout here
+  // intentionally no large numeric exposure-age readout here
   pop();
 }
 
@@ -760,11 +776,30 @@ function drawAnalogDial(cx, cy, r, normalizedRatio) {
     line(cx + cos(rad) * outR, cy + sin(rad) * outR, cx + cos(rad) * inR, cy + sin(rad) * inR);
   }
 
+  // numeric dial labels for the normalized ratio
   fill(30);
   noStroke();
-  textSize(12);
-  text("1", cx, cy - 70);
-  text("0", cx, cy + 70);
+  textStyle(BOLD);
+  textSize(11);
+  const dialLabels = [
+    { value: 1.0, label: "1.0" },
+    { value: 0.75, label: "0.75" },
+    { value: 0.5, label: "0.50" },
+    { value: 0.25, label: "0.25" },
+    { value: 0.0, label: "0.0" }
+  ];
+  for (const item of dialLabels) {
+    const angle = map(item.value, 0, 1, 90, -90);
+    const rad = radians(angle);
+    const labelR = r - 42;
+    text(item.label, cx + cos(rad) * labelR, cy + sin(rad) * labelR);
+  }
+  textStyle(NORMAL);
+
+  fill(COLOR_MUTED);
+  textSize(10);
+  text("normalized", cx, cy - 18);
+  text("ratio", cx, cy - 5);
 
   const handAngle = map(normalizedRatio, 0, 1, 90, -90);
   const handRad = radians(handAngle);
