@@ -721,10 +721,6 @@ function drawFuelTank(x, y, w, h, row, exposureAgeYears) {
   fill(COLOR_TEXT);
   textSize(13);
   text("exposure age", w / 2, h - 50);
-  textSize(12);
-  fill(COLOR_MUTED);
-  text(`N3He / P3He  (${AGE_UNIT_LABEL})`, w / 2, h - 31);
-  text("P3He = 100 atoms / g / yr", w / 2, h - 14);
 
   // intentionally no large numeric exposure-age readout here
   pop();
