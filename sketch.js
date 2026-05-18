@@ -51,8 +51,12 @@ const AGE_UNIT = 1e3;
 const AGE_UNIT_LABEL = "kyr";
 
 // canvas/layout
-const CANVAS_W = 1050;
-const CANVAS_H = 760;
+// Internal drawing resolution stays at 1250x900 so all the carefully
+// placed component positions keep working. DISPLAY_SCALE shrinks the
+// on-screen canvas via CSS so the whole layout fits without zooming out.
+const CANVAS_W = 1250;
+const CANVAS_H = 900;
+const DISPLAY_SCALE = 0.8;
 
 // scenario bar geometry
 let barX, barY, barW, barH;
@@ -214,11 +218,15 @@ function computeApparentBurialAges(row) {
 
 // ---------- p5 setup ----------
 function setup() {
-  createCanvas(CANVAS_W, CANVAS_H);
-  const scaleFactor = Math.min(windowWidth / CANVAS_W, (windowHeight - 40) / CANVAS_H, 1);
-  const canvas = document.querySelector("canvas");
-  canvas.style.width = `${CANVAS_W * scaleFactor}px`;
-  canvas.style.height = `${CANVAS_H * scaleFactor}px`;
+  const c = createCanvas(CANVAS_W, CANVAS_H);
+  // Shrink the on-screen canvas via CSS without changing internal coords.
+  c.style("width", (CANVAS_W * DISPLAY_SCALE) + "px");
+  c.style("height", (CANVAS_H * DISPLAY_SCALE) + "px");
+  // Kill the default browser focus ring / border that appears on the
+  // canvas after a click — that is the "dark outline" that pops up.
+  c.style("outline", "none");
+  c.style("border", "none");
+  c.elt.setAttribute("tabindex", "-1");
   textAlign(CENTER, CENTER);
   frameRate(30);
   textFont("Helvetica, Arial, sans-serif");
@@ -526,53 +534,98 @@ function drawScenarioBar() {
 }
 
 function drawPhaseLabels(totalTime) {
-  const durations = [
-    Math.max(0, scenarioSettings.exposureMyr) * 1e6,
-    Math.max(0, scenarioSettings.burialMyr) * 1e6,
-    Math.max(0, scenarioSettings.reExposureMyr) * 1e6
-  ];
+  if (!scenarioData || scenarioData.length === 0) return;
+
+  // Group consecutive rows by phaseIndex so the label sits dead-center
+  // on the colored block it describes (rather than on a time-mapped
+  // position that can drift one segment over and look "jumbled").
+  const n = scenarioData.length;
+  const segW = barW / n;
+  const blocks = [];
+  let blockStart = 0;
+  let blockPhase = scenarioData[0].phaseIndex;
+  for (let i = 1; i < n; i++) {
+    if (scenarioData[i].phaseIndex !== blockPhase) {
+      blocks.push({ start: blockStart, end: i - 1, phaseIndex: blockPhase });
+      blockStart = i;
+      blockPhase = scenarioData[i].phaseIndex;
+    }
+  }
+  blocks.push({ start: blockStart, end: n - 1, phaseIndex: blockPhase });
+
   const labels = ["Exposure", "Burial", "Re-exposure"];
   const colors = [COLOR_EXPO, COLOR_BURIAL, COLOR_EXPO];
 
-  let start = INITIAL_STATE.t_cumulative_years;
+  noStroke();
   textSize(13);
   textAlign(CENTER, BOTTOM);
   textStyle(BOLD);
 
-  for (let i = 0; i < durations.length; i++) {
-    if (durations[i] <= 0) continue;
-    const phaseStart = start;
-    const phaseEnd = start + durations[i];
-    const x1 = map(phaseStart, INITIAL_STATE.t_cumulative_years, totalTime, barX, barX + barW);
-    const x2 = map(phaseEnd, INITIAL_STATE.t_cumulative_years, totalTime, barX, barX + barW);
+  for (const block of blocks) {
+    const idx = block.phaseIndex;
+    if (idx < 0 || idx >= labels.length) continue;
+
+    // Skip labels for phases too narrow to read at this scale.
+    // 6% of the bar is roughly enough room for the shortest label.
+    const widthFrac = (block.end - block.start + 1) / n;
+    if (widthFrac < 0.06) continue;
+
+    const x1 = barX + block.start * segW;
+    const x2 = barX + (block.end + 1) * segW;
     const cx = (x1 + x2) / 2;
 
-    fill(colors[i]);
-    text(labels[i], cx, barY - 18);
-    start = phaseEnd;
+    fill(colors[idx]);
+    text(labels[idx], cx, barY - 18);
   }
   textStyle(NORMAL);
 }
 
-function drawTimeTicks(totalTime) {
-  const maxMa = totalTime / 1e6;
-  let tickIntervalMa = 0.5;
-  if (maxMa <= 1.0) tickIntervalMa = 0.25;
-  if (maxMa > 3.0) tickIntervalMa = 1.0;
+// "Nice" tick intervals (in Ma) for the scenario bar. Picked so that an
+// arbitrary scenario length ends up with roughly 6–9 ticks, which means
+// the labels visibly change between scenarios instead of always landing
+// on the same 0.5 Ma grid.
+const TICK_NICE_INTERVALS_MA = [0.005, 0.01, 0.02, 0.025, 0.05, 0.1, 0.2, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0];
 
-  fill(80);
+function pickTickInterval(elapsedMa) {
+  const target = 8; // aim for ~8 labels
+  const raw = elapsedMa / target;
+  for (const ni of TICK_NICE_INTERVALS_MA) {
+    if (raw <= ni) return ni;
+  }
+  return TICK_NICE_INTERVALS_MA[TICK_NICE_INTERVALS_MA.length - 1];
+}
+
+function tickDecimalsFor(interval) {
+  // Use exactly as many decimals as the interval itself has, so the
+  // label string is never rounded to a wrong-looking value.
+  const s = interval.toString();
+  const dot = s.indexOf(".");
+  return dot === -1 ? 0 : s.length - dot - 1;
+}
+
+function drawTimeTicks(totalTime) {
+  // The bar spans from the initial state time to totalTime, so we measure
+  // ticks against the scenario-elapsed time (i.e. 0 at the left edge).
+  const startTime = INITIAL_STATE.t_cumulative_years;
+  const elapsedMa = (totalTime - startTime) / 1e6;
+  if (elapsedMa <= 0) return;
+
+  const tickIntervalMa = pickTickInterval(elapsedMa);
+  const decimals = tickDecimalsFor(tickIntervalMa);
+
   textSize(10);
   textAlign(CENTER, TOP);
-  stroke(150);
-  strokeWeight(1);
+  textStyle(NORMAL);
 
-  for (let ma = 0; ma <= maxMa + 0.001; ma += tickIntervalMa) {
-    const tYears = ma * 1e6;
-    const xPos = map(tYears, 0, totalTime, barX, barX + barW);
+  for (let ma = 0; ma <= elapsedMa + 1e-6; ma += tickIntervalMa) {
+    const tYears = startTime + ma * 1e6;
+    const xPos = map(tYears, startTime, totalTime, barX, barX + barW);
+    stroke(150);
+    strokeWeight(1);
     line(xPos, barY + barH, xPos, barY + barH + 6);
     noStroke();
-    text(ma.toFixed(1) + " Ma", xPos, barY + barH + 8);
-    stroke(150);
+    fill(80);
+    text(ma.toFixed(decimals) + " Ma", xPos, barY + barH + 8);
   }
 }
 
@@ -662,7 +715,26 @@ function drawCosmicRays(sceneX, sceneY, sceneW, groundY) {
   textStyle(NORMAL);
 }
 
-// ---------- 3He fuel tank ----------
+// ---------- 3He exposure tank ----------
+// Fixed maximum filling line corresponds to 50 Ma of pure exposure.
+// We keep that cap (per Joerg) but use a sqrt mapping for the visible
+// fill height, so a short scenario like 1 Ma still moves the level
+// noticeably instead of producing a sliver near zero.
+const TANK_MAX_AGE_MA = 50;
+const TANK_MAX_N3 = P_3 * TANK_MAX_AGE_MA * 1e6; // 5e9 atoms / g
+// Side tick labels at sqrt-spaced positions so 0–10 Ma is well-resolved
+// while 50 Ma still sits at the top of the tank.
+const TANK_TICKS_MA = [0, 1, 5, 10, 25, 50];
+
+function tankFillFraction(n3) {
+  // Cube-root mapping: 50 Ma fills the tank, but short geologically
+  // relevant exposures still show a clearly visible fill level.
+  //   0.5 Ma -> 22%,  1 Ma -> 27%,  5 Ma -> 46%,
+  //   10 Ma -> 58%,  25 Ma -> 79%,  50 Ma -> 100%
+  const lin = constrain(n3 / TANK_MAX_N3, 0, 1);
+  return Math.cbrt(lin);
+}
+
 function drawFuelTank(x, y, w, h, row, exposureAgeYears) {
   drawCard(x, y, w, h, 18);
 
@@ -672,7 +744,7 @@ function drawFuelTank(x, y, w, h, row, exposureAgeYears) {
   fill(COLOR_TEXT);
   textSize(20);
   textStyle(BOLD);
-  text("3He Exposure Tank", w / 2, 34);
+  text("3He exposure tank", w / 2, 34);
   textStyle(NORMAL);
 
   fill(COLOR_MUTED);
@@ -684,17 +756,14 @@ function drawFuelTank(x, y, w, h, row, exposureAgeYears) {
   const tankY = 88;
   const tankW = 116;
   const tankH = 220;
-  // Fixed maximum corresponding to 50 Ma of exposure
-  const MAX_EXPOSURE_YEARS = 50e6;
-  const maxN3 = P_3 * MAX_EXPOSURE_YEARS;
-  const frac = constrain(row.N3 / maxN3, 0, 1);
+  const frac = tankFillFraction(row.N3);
   const fillH = tankH * frac;
 
-  // unit label for the tank scale
+  // axis caption: side scale reads as equivalent exposure age
   fill(COLOR_MUTED);
   textSize(11);
-  text("3He inventory", w / 2, 76);
-  text("atoms / g rock", w / 2, 91);
+  text("equivalent exposure", w / 2, 76);
+  text("(Ma)", w / 2, 91);
 
   // tank shell
   stroke(35);
@@ -707,28 +776,21 @@ function drawFuelTank(x, y, w, h, row, exposureAgeYears) {
   fill(COLOR_EXPO[0], COLOR_EXPO[1], COLOR_EXPO[2], row.status === "BURIAL" ? 150 : 215);
   rect(tankX + 7, tankY + tankH - fillH + 7, tankW - 14, Math.max(0, fillH - 14), 0, 0, 15, 15);
 
-  // level marks with units, shown as millions of atoms/g
+  // side tick marks, cube-root-positioned to match the fill scale
   textAlign(LEFT, CENTER);
-  stroke(80, 80, 80, 120);
-  strokeWeight(1);
-  for (let i = 0; i <= 5; i++) {
-    const yy = tankY + tankH - (tankH * i) / 5;
+  for (const ma of TANK_TICKS_MA) {
+    const tickFrac = Math.cbrt(ma / TANK_MAX_AGE_MA);
+    const yy = tankY + tankH - tankH * tickFrac;
+    stroke(80, 80, 80, 120);
+    strokeWeight(1);
     line(tankX + tankW + 8, yy, tankX + tankW + 25, yy);
     noStroke();
     fill(COLOR_MUTED);
     textSize(10);
-    const labelM = (maxN3 * i / 5) / 1e6;
-    text(`${labelM.toFixed(1)}M`, tankX + tankW + 30, yy);
-    stroke(80, 80, 80, 120);
+    text(`${ma} Ma`, tankX + tankW + 30, yy);
   }
   textAlign(CENTER, CENTER);
 
-  noStroke();
-  fill(COLOR_TEXT);
-  textSize(13);
-  text("exposure age", w / 2, h - 50);
-
-  // intentionally no large numeric exposure-age readout here
   pop();
 }
 
@@ -756,15 +818,16 @@ function drawBurialClockCard(x, y, w, h, isotopeLabel, normalizedRatio, burialAg
 }
 
 function drawAnalogDial(cx, cy, r, normalizedRatio) {
-  // dial frame
+  // dial frame — kept deliberately thin so the dial doesn't read as a
+  // heavy black ring (which was being interpreted as a stray outline).
   noFill();
-  stroke(20);
-  strokeWeight(6);
+  stroke(60);
+  strokeWeight(2);
   circle(cx, cy, r * 2);
 
-  stroke(180);
-  strokeWeight(2);
-  circle(cx, cy, r * 2 - 12);
+  stroke(210);
+  strokeWeight(1);
+  circle(cx, cy, r * 2 - 10);
 
   // ticks from 1 at top to 0 at bottom
   for (let tick = 0; tick <= 1.0001; tick += 0.1) {
