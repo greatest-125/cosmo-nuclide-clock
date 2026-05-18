@@ -51,8 +51,12 @@ const AGE_UNIT = 1e3;
 const AGE_UNIT_LABEL = "kyr";
 
 // canvas/layout
+// Internal drawing resolution stays at 1250x900 so all the carefully
+// placed component positions keep working. DISPLAY_SCALE shrinks the
+// on-screen canvas via CSS so the whole layout fits without zooming out.
 const CANVAS_W = 1250;
 const CANVAS_H = 900;
+const DISPLAY_SCALE = 0.8;
 
 // scenario bar geometry
 let barX, barY, barW, barH;
@@ -214,7 +218,10 @@ function computeApparentBurialAges(row) {
 
 // ---------- p5 setup ----------
 function setup() {
-  createCanvas(CANVAS_W, CANVAS_H);
+  const c = createCanvas(CANVAS_W, CANVAS_H);
+  // Shrink the on-screen canvas via CSS without changing internal coords.
+  c.style("width", (CANVAS_W * DISPLAY_SCALE) + "px");
+  c.style("height", (CANVAS_H * DISPLAY_SCALE) + "px");
   textAlign(CENTER, CENTER);
   frameRate(30);
   textFont("Helvetica, Arial, sans-serif");
@@ -551,24 +558,37 @@ function drawPhaseLabels(totalTime) {
 }
 
 function drawTimeTicks(totalTime) {
-  const maxMa = totalTime / 1e6;
-  let tickIntervalMa = 0.5;
-  if (maxMa <= 1.0) tickIntervalMa = 0.25;
-  if (maxMa > 3.0) tickIntervalMa = 1.0;
+  // The bar spans from the initial state time to totalTime, so we measure
+  // ticks against the scenario-elapsed time (i.e. 0 at the left edge).
+  const startTime = INITIAL_STATE.t_cumulative_years;
+  const elapsedMa = (totalTime - startTime) / 1e6;
 
-  fill(80);
+  // Pick a tick interval that gives a useful number of labels for the
+  // current scenario length. Without this, short scenarios (e.g. 0.3 Ma
+  // exposure + 0.3 Ma burial) get the same coarse ticks as long ones.
+  let tickIntervalMa;
+  if (elapsedMa <= 0.15) tickIntervalMa = 0.025;
+  else if (elapsedMa <= 0.3) tickIntervalMa = 0.05;
+  else if (elapsedMa <= 0.6) tickIntervalMa = 0.1;
+  else if (elapsedMa <= 1.5) tickIntervalMa = 0.25;
+  else if (elapsedMa <= 3.0) tickIntervalMa = 0.5;
+  else if (elapsedMa <= 10.0) tickIntervalMa = 1.0;
+  else tickIntervalMa = 2.0;
+
+  const decimals = tickIntervalMa < 0.1 ? 2 : 1;
+
   textSize(10);
   textAlign(CENTER, TOP);
-  stroke(150);
-  strokeWeight(1);
 
-  for (let ma = 0; ma <= maxMa + 0.001; ma += tickIntervalMa) {
-    const tYears = ma * 1e6;
-    const xPos = map(tYears, 0, totalTime, barX, barX + barW);
+  for (let ma = 0; ma <= elapsedMa + 1e-6; ma += tickIntervalMa) {
+    const tYears = startTime + ma * 1e6;
+    const xPos = map(tYears, startTime, totalTime, barX, barX + barW);
+    stroke(150);
+    strokeWeight(1);
     line(xPos, barY + barH, xPos, barY + barH + 6);
     noStroke();
-    text(ma.toFixed(1) + " Ma", xPos, barY + barH + 8);
-    stroke(150);
+    fill(80);
+    text(ma.toFixed(decimals) + " Ma", xPos, barY + barH + 8);
   }
 }
 
@@ -658,7 +678,14 @@ function drawCosmicRays(sceneX, sceneY, sceneW, groundY) {
   textStyle(NORMAL);
 }
 
-// ---------- 3He fuel tank ----------
+// ---------- 3He exposure tank ----------
+// Fixed maximum filling line corresponds to 50 Ma of pure exposure.
+// Keeping the scale fixed (rather than auto-fitting to the scenario)
+// makes the tank fill level comparable across runs and more sensitive
+// for the geologically relevant short-exposure regime.
+const TANK_MAX_AGE_MA = 50;
+const TANK_MAX_N3 = P_3 * TANK_MAX_AGE_MA * 1e6; // 5e9 atoms / g
+
 function drawFuelTank(x, y, w, h, row, exposureAgeYears) {
   drawCard(x, y, w, h, 18);
 
@@ -668,7 +695,7 @@ function drawFuelTank(x, y, w, h, row, exposureAgeYears) {
   fill(COLOR_TEXT);
   textSize(20);
   textStyle(BOLD);
-  text("3He fuel tank", w / 2, 34);
+  text("3He exposure tank", w / 2, 34);
   textStyle(NORMAL);
 
   fill(COLOR_MUTED);
@@ -680,15 +707,14 @@ function drawFuelTank(x, y, w, h, row, exposureAgeYears) {
   const tankY = 88;
   const tankW = 116;
   const tankH = 220;
-  const maxN3 = scenarioData[scenarioData.length - 1].N3;
-  const frac = constrain(row.N3 / maxN3, 0, 1);
+  const frac = constrain(row.N3 / TANK_MAX_N3, 0, 1);
   const fillH = tankH * frac;
 
-  // unit label for the tank scale
+  // axis caption: side scale reads as equivalent exposure age
   fill(COLOR_MUTED);
   textSize(11);
-  text("3He inventory", w / 2, 76);
-  text("atoms / g rock", w / 2, 91);
+  text("equivalent exposure", w / 2, 76);
+  text("(Ma)", w / 2, 91);
 
   // tank shell
   stroke(35);
@@ -701,28 +727,21 @@ function drawFuelTank(x, y, w, h, row, exposureAgeYears) {
   fill(COLOR_EXPO[0], COLOR_EXPO[1], COLOR_EXPO[2], row.status === "BURIAL" ? 150 : 215);
   rect(tankX + 7, tankY + tankH - fillH + 7, tankW - 14, Math.max(0, fillH - 14), 0, 0, 15, 15);
 
-  // level marks with units, shown as millions of atoms/g
+  // side tick marks at 0, 10, 20, 30, 40, 50 Ma equivalent exposure
   textAlign(LEFT, CENTER);
-  stroke(80, 80, 80, 120);
-  strokeWeight(1);
   for (let i = 0; i <= 5; i++) {
     const yy = tankY + tankH - (tankH * i) / 5;
+    stroke(80, 80, 80, 120);
+    strokeWeight(1);
     line(tankX + tankW + 8, yy, tankX + tankW + 25, yy);
     noStroke();
     fill(COLOR_MUTED);
     textSize(10);
-    const labelM = (maxN3 * i / 5) / 1e6;
-    text(`${labelM.toFixed(1)}M`, tankX + tankW + 30, yy);
-    stroke(80, 80, 80, 120);
+    const labelMa = (TANK_MAX_AGE_MA * i) / 5;
+    text(`${labelMa.toFixed(0)} Ma`, tankX + tankW + 30, yy);
   }
   textAlign(CENTER, CENTER);
 
-  noStroke();
-  fill(COLOR_TEXT);
-  textSize(13);
-  text("exposure age", w / 2, h - 50);
-
-  // intentionally no large numeric exposure-age readout here
   pop();
 }
 
