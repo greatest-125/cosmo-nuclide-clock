@@ -716,23 +716,20 @@ function drawCosmicRays(sceneX, sceneY, sceneW, groundY) {
 }
 
 // ---------- 3He exposure tank ----------
-// Fixed maximum filling line corresponds to 50 Ma of pure exposure.
-// We keep that cap (per Joerg) but use a sqrt mapping for the visible
-// fill height, so a short scenario like 1 Ma still moves the level
-// noticeably instead of producing a sliver near zero.
+// Fixed linear scale: full tank = 50 Ma of pure exposure. Scenarios
+// that would exceed 50 Ma simply clamp at full — they don't burst the
+// tank. Short scenarios will only fill a small fraction of the tank,
+// which is the geologically honest picture against the 50 Ma cap.
 const TANK_MAX_AGE_MA = 50;
 const TANK_MAX_N3 = P_3 * TANK_MAX_AGE_MA * 1e6; // 5e9 atoms / g
-// Side tick labels at sqrt-spaced positions so 0–10 Ma is well-resolved
-// while 50 Ma still sits at the top of the tank.
-const TANK_TICKS_MA = [0, 1, 5, 10, 25, 50];
+// Evenly-spaced side tick labels (linear scale).
+const TANK_TICKS_MA = [0, 10, 20, 30, 40, 50];
 
 function tankFillFraction(n3) {
-  // Cube-root mapping: 50 Ma fills the tank, but short geologically
-  // relevant exposures still show a clearly visible fill level.
-  //   0.5 Ma -> 22%,  1 Ma -> 27%,  5 Ma -> 46%,
-  //   10 Ma -> 58%,  25 Ma -> 79%,  50 Ma -> 100%
-  const lin = constrain(n3 / TANK_MAX_N3, 0, 1);
-  return Math.cbrt(lin);
+  // Plain linear mapping, clamped to [0, 1]. N3 grows at a constant
+  // production rate (P_3) during exposure, so visible fill height is
+  // directly proportional to accumulated exposure age, up to 50 Ma.
+  return constrain(n3 / TANK_MAX_N3, 0, 1);
 }
 
 function drawFuelTank(x, y, w, h, row, exposureAgeYears) {
@@ -776,10 +773,10 @@ function drawFuelTank(x, y, w, h, row, exposureAgeYears) {
   fill(COLOR_EXPO[0], COLOR_EXPO[1], COLOR_EXPO[2], row.status === "BURIAL" ? 150 : 215);
   rect(tankX + 7, tankY + tankH - fillH + 7, tankW - 14, Math.max(0, fillH - 14), 0, 0, 15, 15);
 
-  // side tick marks, cube-root-positioned to match the fill scale
+  // side tick marks at evenly-spaced 0, 10, 20, 30, 40, 50 Ma positions
   textAlign(LEFT, CENTER);
   for (const ma of TANK_TICKS_MA) {
-    const tickFrac = Math.cbrt(ma / TANK_MAX_AGE_MA);
+    const tickFrac = ma / TANK_MAX_AGE_MA;
     const yy = tankY + tankH - tankH * tickFrac;
     stroke(80, 80, 80, 120);
     strokeWeight(1);
@@ -818,16 +815,13 @@ function drawBurialClockCard(x, y, w, h, isotopeLabel, normalizedRatio, burialAg
 }
 
 function drawAnalogDial(cx, cy, r, normalizedRatio) {
-  // dial frame — kept deliberately thin so the dial doesn't read as a
-  // heavy black ring (which was being interpreted as a stray outline).
+  // Single hairline dial frame. Previous heavier strokes (even at 2px)
+  // were still being interpreted as a "dark band" on mobile, so we
+  // drop to one barely-visible light gray ring.
   noFill();
-  stroke(60);
-  strokeWeight(2);
-  circle(cx, cy, r * 2);
-
-  stroke(210);
+  stroke(220);
   strokeWeight(1);
-  circle(cx, cy, r * 2 - 10);
+  circle(cx, cy, r * 2);
 
   // ticks from 1 at top to 0 at bottom
   for (let tick = 0; tick <= 1.0001; tick += 0.1) {
@@ -836,8 +830,8 @@ function drawAnalogDial(cx, cy, r, normalizedRatio) {
     const rad = radians(angle);
     const outR = r - 4;
     const inR = isMajor ? r - 27 : r - 17;
-    stroke(20);
-    strokeWeight(isMajor ? 3 : 1);
+    stroke(100);
+    strokeWeight(isMajor ? 2 : 1);
     line(cx + cos(rad) * outR, cy + sin(rad) * outR, cx + cos(rad) * inR, cy + sin(rad) * inR);
   }
 
@@ -910,14 +904,9 @@ function drawBurialAgeReadout(cx, y, burialAgeKyr, status) {
   textStyle(BOLD);
   text(`${burialAgeKyr.toFixed(0)} ${AGE_UNIT_LABEL}`, cx, y + 10);
   textStyle(NORMAL);
-
-  if (status === "EXPOSURE") {
-    fill(COLOR_EXPO);
-  } else {
-    fill(COLOR_BURIAL);
-  }
-  textSize(11);
-  text(status === "BURIAL" ? "burial phase" : "exposure phase", cx, y + 43);
+  // Phase status label removed — the scenario bar above already shows
+  // which phase the system is in, in red/blue, so a second indicator
+  // under each dial was redundant and was colliding visually.
 }
 
 function drawClockLinkageBadge(cx, y, t10, t36, row) {
