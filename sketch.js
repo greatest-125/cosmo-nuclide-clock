@@ -526,7 +526,12 @@ function drawScenarioBar() {
   drawPhaseLabels(totalTime);
   drawTimeTicks(totalTime);
 
-  const arrowX = barX + map(currentFrame, 0, n - 1, 0, barW);
+  // Clamp the playhead triangle so its 18px base never pokes past the
+  // bar edges. Without this, when currentFrame is at the last frame the
+  // right corner of the triangle extends 9px past barX+barW and was
+  // appearing as a stray yellow slab beside the triangle.
+  const rawArrowX = barX + map(currentFrame, 0, n - 1, 0, barW);
+  const arrowX = constrain(rawArrowX, barX + 9, barX + barW - 9);
   fill("#FFD600");
   noStroke();
   triangle(arrowX - 9, barY - 15, arrowX + 9, barY - 15, arrowX, barY - 3);
@@ -742,23 +747,12 @@ function drawFuelTank(x, y, w, h, row, exposureAgeYears) {
   text("3He exposure tank", w / 2, 34);
   textStyle(NORMAL);
 
-  fill(COLOR_MUTED);
-  textSize(12);
-  const caption = row.status === "BURIAL" ? "held constant under ice" : "fills during exposure";
-  text(caption, w / 2, 58);
-
   const tankX = w / 2 - 58;
   const tankY = 88;
   const tankW = 116;
   const tankH = 220;
   const frac = tankFillFraction(row.N3);
   const fillH = tankH * frac;
-
-  // axis caption: side scale reads as equivalent exposure age
-  fill(COLOR_MUTED);
-  textSize(11);
-  text("equivalent exposure", w / 2, 76);
-  text("(Ma)", w / 2, 91);
 
   // tank shell — light gray hairline so it doesn't read as "dark lines"
   stroke(170);
