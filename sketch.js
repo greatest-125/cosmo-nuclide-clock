@@ -495,12 +495,13 @@ function drawTitle() {
 function drawCard(x, y, w, h, r = 18) {
   push();
   rectMode(CORNER);
-  noStroke();
-  drawingContext.shadowBlur = 14;
-  drawingContext.shadowColor = "rgba(0,0,0,0.12)";
+  // Subtle hairline border for definition; no shadow blur (the shadow
+  // was rendering as a hard dark edge on the right/bottom of cards at
+  // certain browser zoom levels, which read as "dark lines on the side").
+  stroke(225);
+  strokeWeight(1);
   fill(COLOR_CARD);
   rect(x, y, w, h, r);
-  drawingContext.shadowBlur = 0;
   pop();
 }
 
@@ -716,19 +717,16 @@ function drawCosmicRays(sceneX, sceneY, sceneW, groundY) {
 }
 
 // ---------- 3He exposure tank ----------
-// Fixed linear scale: full tank = 50 Ma of pure exposure. Scenarios
-// that would exceed 50 Ma simply clamp at full — they don't burst the
-// tank. Short scenarios will only fill a small fraction of the tank,
-// which is the geologically honest picture against the 50 Ma cap.
-const TANK_MAX_AGE_MA = 50;
-const TANK_MAX_N3 = P_3 * TANK_MAX_AGE_MA * 1e6; // 5e9 atoms / g
-// Evenly-spaced side tick labels (linear scale).
-const TANK_TICKS_MA = [0, 10, 20, 30, 40, 50];
+// Linear scale: full tank = 5 Ma of pure exposure. This range was
+// chosen so that the geologically-relevant short scenarios (≤ a few
+// Ma) produce a clearly visible fill. Anything above 5 Ma clamps at
+// full (the tank doesn't burst).
+const TANK_MAX_AGE_MA = 5;
+const TANK_MAX_N3 = P_3 * TANK_MAX_AGE_MA * 1e6; // 5e8 atoms / g
+// Evenly-spaced side tick labels (linear scale): 0, 1, 2, 3, 4, 5 Ma.
+const TANK_TICKS_MA = [0, 1, 2, 3, 4, 5];
 
 function tankFillFraction(n3) {
-  // Plain linear mapping, clamped to [0, 1]. N3 grows at a constant
-  // production rate (P_3) during exposure, so visible fill height is
-  // directly proportional to accumulated exposure age, up to 50 Ma.
   return constrain(n3 / TANK_MAX_N3, 0, 1);
 }
 
@@ -762,16 +760,26 @@ function drawFuelTank(x, y, w, h, row, exposureAgeYears) {
   text("equivalent exposure", w / 2, 76);
   text("(Ma)", w / 2, 91);
 
-  // tank shell
-  stroke(35);
-  strokeWeight(4);
+  // tank shell — light gray hairline so it doesn't read as "dark lines"
+  stroke(170);
+  strokeWeight(1.5);
   fill(255);
   rect(tankX, tankY, tankW, tankH, 22);
 
-  // fill
+  // fill — guarantee a clearly visible bar whenever any 3He is present.
+  // Below ~7% true fill, linear scaling produces a strip too thin to
+  // see, so we floor the visible height while letting it grow linearly
+  // once it exceeds the floor.
   noStroke();
   fill(COLOR_EXPO[0], COLOR_EXPO[1], COLOR_EXPO[2], row.status === "BURIAL" ? 150 : 215);
-  rect(tankX + 7, tankY + tankH - fillH + 7, tankW - 14, Math.max(0, fillH - 14), 0, 0, 15, 15);
+  const insetX = 6;
+  const innerW = tankW - insetX * 2;
+  if (fillH > 0 && row.N3 > 0) {
+    const minVisibleH = 14;
+    const drawH = Math.max(minVisibleH, fillH);
+    const drawY = tankY + tankH - drawH;
+    rect(tankX + insetX, drawY, innerW, drawH - 2, 0, 0, 4, 4);
+  }
 
   // side tick marks at evenly-spaced 0, 10, 20, 30, 40, 50 Ma positions
   textAlign(LEFT, CENTER);
@@ -855,10 +863,8 @@ function drawAnalogDial(cx, cy, r, normalizedRatio) {
   }
   textStyle(NORMAL);
 
-  fill(COLOR_MUTED);
-  textSize(10);
-  text("normalized", cx, cy - 18);
-  text("ratio", cx, cy - 5);
+  // 'normalized ratio' label removed from dial center — the same label
+  // already appears under the digital readout below, no need to repeat.
 
   const handAngle = map(normalizedRatio, 0, 1, 90, -90);
   const handRad = radians(handAngle);
@@ -917,12 +923,11 @@ function drawClockLinkageBadge(cx, y, t10, t36, row) {
 
   push();
   rectMode(CENTER);
-  noStroke();
+  stroke(225);
+  strokeWeight(1);
   fill(255);
-  drawingContext.shadowBlur = 10;
-  drawingContext.shadowColor = "rgba(0,0,0,0.10)";
   rect(cx, y, 310, 54, 16);
-  drawingContext.shadowBlur = 0;
+  noStroke();
 
   fill(isDivergent ? COLOR_EXPO : hasBurialStarted ? COLOR_BURIAL : COLOR_MUTED);
   textStyle(BOLD);
