@@ -52,11 +52,14 @@ const AGE_UNIT_LABEL = "kyr";
 
 // canvas/layout
 // Internal drawing resolution stays at 1250x900 so all the carefully
-// placed component positions keep working. DISPLAY_SCALE shrinks the
-// on-screen canvas via CSS so the whole layout fits without zooming out.
+// placed component positions keep working. We size the canvas directly
+// at the displayed resolution (rather than CSS-scaling a larger canvas)
+// to avoid browser compositing artifacts during fast playhead drags.
 const CANVAS_W = 1250;
 const CANVAS_H = 900;
 const DISPLAY_SCALE = 0.8;
+const DISPLAY_W = Math.round(CANVAS_W * DISPLAY_SCALE);
+const DISPLAY_H = Math.round(CANVAS_H * DISPLAY_SCALE);
 
 // scenario bar geometry
 let barX, barY, barW, barH;
@@ -218,17 +221,13 @@ function computeApparentBurialAges(row) {
 
 // ---------- p5 setup ----------
 function setup() {
-  const c = createCanvas(CANVAS_W, CANVAS_H);
-  // Shrink the on-screen canvas via CSS without changing internal coords.
-  c.style("width", (CANVAS_W * DISPLAY_SCALE) + "px");
-  c.style("height", (CANVAS_H * DISPLAY_SCALE) + "px");
-  // Pixel-aligned scaling so the browser doesn't blend two frames during
-  // rapid drag updates — that interpolation was producing the stray
-  // yellow "ghost" alongside the playhead triangle on drag.
-  c.style("image-rendering", "pixelated");
-  c.style("image-rendering", "crisp-edges");
-  // Kill the default browser focus ring / border that appears on the
-  // canvas after a click — that is the "dark outline" that pops up.
+  const c = createCanvas(DISPLAY_W, DISPLAY_H);
+  // Apply scale via p5's drawingContext rather than via CSS. This is
+  // critical: CSS scaling makes the browser composite a half-blended
+  // ghost of the previous frame during fast redraws (the stray yellow
+  // bit alongside the playhead triangle), but an internal transform
+  // gives the same visual size with pixel-perfect repaints.
+  // Kill the default browser focus ring / border.
   c.style("outline", "none");
   c.style("border", "none");
   c.elt.setAttribute("tabindex", "-1");
@@ -452,6 +451,13 @@ function drawFrame() {
   background(250);
   if (!scenarioData || scenarioData.length === 0) return;
 
+  // All drawing code below uses internal 1250x900 coordinates. We scale
+  // them into the actual DISPLAY_W x DISPLAY_H canvas via a transform,
+  // which avoids the browser-side CSS scaling that was producing ghost
+  // frames during fast playhead drags.
+  push();
+  scale(DISPLAY_SCALE);
+
   const row = scenarioData[currentFrame];
   const { t_app_3_10, t_app_3_36 } = computeApparentBurialAges(row);
   const t_exp_3 = computeStableExposureAge(row.N3, P_3);
@@ -486,6 +492,8 @@ function drawFrame() {
 
   drawClockLinkageBadge(665, 800, t_app_3_10, t_app_3_36, row);
   drawCurrentTimeReadout(1080, 350, row);
+
+  pop();
 }
 
 function drawTitle() {
@@ -493,7 +501,9 @@ function drawTitle() {
   fill(COLOR_TEXT);
   textSize(28);
   textStyle(BOLD);
-  text("Exposure → Burial → Re-exposure", width / 2, 43);
+  // Use internal canvas width (1250), not p5's `width` global which is
+  // now the smaller display canvas width.
+  text("Exposure → Burial → Re-exposure", CANVAS_W / 2, 43);
   textStyle(NORMAL);
 }
 
@@ -960,12 +970,20 @@ function drawCurrentTimeReadout(x, y, row) {
 }
 
 // ---------- bar interactive ----------
+// All hit-test rectangles below are expressed in internal 1250x900
+// coordinates, so we divide mouseX/Y by DISPLAY_SCALE to convert from
+// display-space (the actual canvas size) to internal space.
+function _mx() { return mouseX / DISPLAY_SCALE; }
+function _my() { return mouseY / DISPLAY_SCALE; }
+
 function mousePressed() {
+  const mx = _mx();
+  const my = _my();
   if (
-    mouseX > barX &&
-    mouseX < barX + barW &&
-    mouseY > barY - 20 &&
-    mouseY < barY + barH + 34
+    mx > barX &&
+    mx < barX + barW &&
+    my > barY - 20 &&
+    my < barY + barH + 34
   ) {
     isDragging = true;
     noLoop();
@@ -988,7 +1006,7 @@ function mouseReleased() {
 }
 
 function updateFrameFromMouse() {
-  let relX = constrain(mouseX - barX, 0, barW);
+  let relX = constrain(_mx() - barX, 0, barW);
   let n = scenarioData.length;
   currentFrame = int(map(relX, 0, barW, 0, n - 1));
   drawFrame();
