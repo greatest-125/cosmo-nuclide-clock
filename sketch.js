@@ -222,6 +222,11 @@ function setup() {
   // Shrink the on-screen canvas via CSS without changing internal coords.
   c.style("width", (CANVAS_W * DISPLAY_SCALE) + "px");
   c.style("height", (CANVAS_H * DISPLAY_SCALE) + "px");
+  // Pixel-aligned scaling so the browser doesn't blend two frames during
+  // rapid drag updates — that interpolation was producing the stray
+  // yellow "ghost" alongside the playhead triangle on drag.
+  c.style("image-rendering", "pixelated");
+  c.style("image-rendering", "crisp-edges");
   // Kill the default browser focus ring / border that appears on the
   // canvas after a click — that is the "dark outline" that pops up.
   c.style("outline", "none");
@@ -969,7 +974,10 @@ function mousePressed() {
 }
 
 function mouseDragged() {
-  if (isDragging) updateFrameFromMouse();
+  if (isDragging) {
+    updateFrameFromMouse();
+    return false;
+  }
 }
 
 function mouseReleased() {
