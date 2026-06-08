@@ -1,5 +1,5 @@
 // Cosmo Clock
-// Updated: May 2026
+// Updated: June 2026 
 // MIT License
 
 let scenarioData = [];
@@ -737,14 +737,15 @@ function drawCosmicRays(sceneX, sceneY, sceneW, groundY) {
 }
 
 // ---------- 3He exposure tank ----------
-// Linear scale: full tank = 5 Ma of pure exposure. This range was
-// chosen so that the geologically-relevant short scenarios (≤ a few
-// Ma) produce a clearly visible fill. Anything above 5 Ma clamps at
-// full (the tank doesn't burst).
-const TANK_MAX_AGE_MA = 5;
-const TANK_MAX_N3 = P_3 * TANK_MAX_AGE_MA * 1e6; // 5e8 atoms / g
-// Evenly-spaced side tick labels (linear scale): 0, 1, 2, 3, 4, 5 Ma.
-const TANK_TICKS_MA = [0, 1, 2, 3, 4, 5];
+// Linear scale: full tank = 3 Ma of pure exposure. This range was
+// chosen so that the original 500 ka exposure produces an easily visible
+// fill while keeping the tank focused on the time range Joerg wants to show.
+// Anything above 3 Ma clamps at full (the tank doesn't burst).
+const TANK_MAX_AGE_MA = 3;
+const TANK_MAX_N3 = P_3 * TANK_MAX_AGE_MA * 1e6; // 3e8 atoms / g
+// Side tick labels (linear scale), including 0.5 Ma so the 500 ka
+// initial exposure has an obvious reference line.
+const TANK_TICKS_MA = [0, 0.5, 1, 1.5, 2, 2.5, 3];
 
 function tankFillFraction(n3) {
   return constrain(n3 / TANK_MAX_N3, 0, 1);
@@ -801,7 +802,8 @@ function drawFuelTank(x, y, w, h, row, exposureAgeYears) {
     noStroke();
     fill(COLOR_MUTED);
     textSize(10);
-    text(`${ma} Ma`, tankX + tankW + 30, yy);
+    const label = Number.isInteger(ma) ? `${ma} Ma` : `${ma.toFixed(1)} Ma`;
+    text(label, tankX + tankW + 30, yy);
   }
   textAlign(CENTER, CENTER);
 
