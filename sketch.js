@@ -1,5 +1,5 @@
 // Cosmo Clock
-// Updated: June 2026 
+// Updated: September 2026 
 // MIT License
 
 let scenarioData = [];
@@ -25,8 +25,9 @@ const P_3 = 100.0;
 const P_36 = 12.0;
 
 // production ratios retained as raw reference values
-const Rp_3_10 = P_3 / P_10;
-const Rp_3_36 = P_3 / P_36;
+// (radionuclide / stable nuclide, matching the burial-ratio convention below)
+const Rp_10_3 = P_10 / P_3;
+const Rp_36_3 = P_36 / P_3;
 
 // time step
 const DT_YEARS = 5000;
@@ -99,11 +100,15 @@ function clamp01(v) {
   return Math.max(0, Math.min(1, v));
 }
 
-function buildRow(t, status, N10, N3, N36, Rburial3_10, Rburial3_36, phaseIndex) {
-  const R_3_10 = N3 / N10;
-  const R_3_36 = N3 / N36;
-  const Rnorm_3_10 = Rburial3_10 ? clamp01(Rburial3_10 / R_3_10) : 1;
-  const Rnorm_3_36 = Rburial3_36 ? clamp01(Rburial3_36 / R_3_36) : 1;
+function buildRow(t, status, N10, N3, N36, Rburial10_3, Rburial36_3, phaseIndex) {
+  // Radionuclide / stable-nuclide ratios. These DECREASE with burial time
+  // (the radionuclide decays away while the stable 3He does not), which is
+  // the standard burial-dating convention and is what makes the age
+  // formula below (and the "ratio winds down" dial) come out right.
+  const R_10_3 = N10 / N3;
+  const R_36_3 = N36 / N3;
+  const Rnorm_10_3 = Rburial10_3 ? clamp01(R_10_3 / Rburial10_3) : 1;
+  const Rnorm_36_3 = Rburial36_3 ? clamp01(R_36_3 / Rburial36_3) : 1;
 
   return {
     t_cumulative: t,
@@ -112,12 +117,12 @@ function buildRow(t, status, N10, N3, N36, Rburial3_10, Rburial3_36, phaseIndex)
     N10,
     N3,
     N36,
-    R_3_10,
-    R_3_36,
-    Rnorm_3_10,
-    Rnorm_3_36,
-    Rbase_3_10: Rburial3_10,
-    Rbase_3_36: Rburial3_36
+    R_10_3,
+    R_36_3,
+    Rnorm_10_3,
+    Rnorm_36_3,
+    Rbase_10_3: Rburial10_3,
+    Rbase_36_3: Rburial36_3
   };
 }
 
@@ -131,8 +136,8 @@ function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
   let N36 = INITIAL_STATE.N36;
   let t = INITIAL_STATE.t_cumulative_years;
   let burialStarted = false;
-  let Rburial_3_10 = null;
-  let Rburial_3_36 = null;
+  let Rburial_10_3 = null;
+  let Rburial_36_3 = null;
 
   const rows = [];
   rows.push(buildRow(t, "EXPOSURE", N10, N3, N36, null, null, 0));
@@ -160,8 +165,8 @@ function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
 
       if (phase.status === "BURIAL" && !burialStarted) {
         burialStarted = true;
-        Rburial_3_10 = N3 / N10;
-        Rburial_3_36 = N3 / N36;
+        Rburial_10_3 = N10 / N3;
+        Rburial_36_3 = N36 / N3;
       }
 
       t += DT_YEARS;
@@ -172,8 +177,8 @@ function generateScenarioData(exposureMyr, burialMyr, reExposureMyr) {
           N10,
           N3,
           N36,
-          burialStarted ? Rburial_3_10 : null,
-          burialStarted ? Rburial_3_36 : null,
+          burialStarted ? Rburial_10_3 : null,
+          burialStarted ? Rburial_36_3 : null,
           phase.phaseIndex
         )
       );
@@ -202,21 +207,23 @@ function computeStableExposureAge(N, productionRate) {
 }
 
 function computeApparentBurialAges(row) {
-  const Rref_3_10 = isFinite(row.Rbase_3_10) ? row.Rbase_3_10 : Rp_3_10;
-  const Rref_3_36 = isFinite(row.Rbase_3_36) ? row.Rbase_3_36 : Rp_3_36;
+  const Rref_10_3 = isFinite(row.Rbase_10_3) ? row.Rbase_10_3 : Rp_10_3;
+  const Rref_36_3 = isFinite(row.Rbase_36_3) ? row.Rbase_36_3 : Rp_36_3;
 
-  let t_app_3_10 = Math.log(row.R_3_10 / Rref_3_10) / L_10;
-  let t_app_3_36 = Math.log(row.R_3_36 / Rref_3_36) / L_36;
+  // R = R0 * exp(-lambda * t)  =>  t = ln(R0 / R) / lambda
+  // (radionuclide/stable ratio decays away with burial time)
+  let t_app_10_3 = Math.log(Rref_10_3 / row.R_10_3) / L_10;
+  let t_app_36_3 = Math.log(Rref_36_3 / row.R_36_3) / L_36;
 
-  if (!isFinite(t_app_3_10) || t_app_3_10 < 0) t_app_3_10 = 0;
-  if (!isFinite(t_app_3_36) || t_app_3_36 < 0) t_app_3_36 = 0;
+  if (!isFinite(t_app_10_3) || t_app_10_3 < 0) t_app_10_3 = 0;
+  if (!isFinite(t_app_36_3) || t_app_36_3 < 0) t_app_36_3 = 0;
 
-  if (row.status === "EXPOSURE" && row.Rbase_3_10 === null) {
-    t_app_3_10 = 0;
-    t_app_3_36 = 0;
+  if (row.status === "EXPOSURE" && row.Rbase_10_3 === null) {
+    t_app_10_3 = 0;
+    t_app_36_3 = 0;
   }
 
-  return { t_app_3_10, t_app_3_36 };
+  return { t_app_10_3, t_app_36_3 };
 }
 
 // ---------- p5 setup ----------
@@ -459,7 +466,7 @@ function drawFrame() {
   scale(DISPLAY_SCALE);
 
   const row = scenarioData[currentFrame];
-  const { t_app_3_10, t_app_3_36 } = computeApparentBurialAges(row);
+  const { t_app_10_3, t_app_36_3 } = computeApparentBurialAges(row);
   const t_exp_3 = computeStableExposureAge(row.N3, P_3);
 
   drawTitle();
@@ -473,9 +480,9 @@ function drawFrame() {
     395,
     330,
     390,
-    "3He / 10Be",
-    row.Rnorm_3_10,
-    t_app_3_10 / AGE_UNIT,
+    "10Be / 3He",
+    row.Rnorm_10_3,
+    t_app_10_3 / AGE_UNIT,
     row.status
   );
 
@@ -484,13 +491,13 @@ function drawFrame() {
     395,
     330,
     390,
-    "3He / 36Cl",
-    row.Rnorm_3_36,
-    t_app_3_36 / AGE_UNIT,
+    "36Cl / 3He",
+    row.Rnorm_36_3,
+    t_app_36_3 / AGE_UNIT,
     row.status
   );
 
-  drawClockLinkageBadge(665, 800, t_app_3_10, t_app_3_36, row);
+  drawClockLinkageBadge(665, 800, t_app_10_3, t_app_36_3, row);
   drawCurrentTimeReadout(1080, 350, row);
 
   pop();
@@ -928,7 +935,7 @@ function drawBurialAgeReadout(cx, y, burialAgeKyr, status) {
 
 function drawClockLinkageBadge(cx, y, t10, t36, row) {
   const diffKyr = Math.abs(t10 - t36) / AGE_UNIT;
-  const hasBurialStarted = row.Rbase_3_10 !== null;
+  const hasBurialStarted = row.Rbase_10_3 !== null;
   const isDivergent = hasBurialStarted && diffKyr > 20;
   const badge = !hasBurialStarted ? "before burial" : isDivergent ? "nonconcordant" : "concordant";
 
